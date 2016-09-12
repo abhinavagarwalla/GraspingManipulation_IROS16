@@ -29,9 +29,16 @@ class StateMachineController(ReflexController):
 		#print 'Time :', sim.getTime()
 		#controller state machine
 
+		#print 'List of all sensors available are: \n'
+		#for idx in xrange(40):
+			#print controller.sensor(idx).name()
+		print 'length of lidar sensor data: ', len(controller.sensor(33).getMeasurements())
+		#time.sleep(0.5)
+		print '\n\n\n'
 		print "State: " + str(self.state) + "\t\tSplit: " + str(math.ceil(sim.getTime()%self.counter)) + \
 				"\t\tTime: " + str(sim.getTime())
 		if self.state == 'idle':
+			#print controller.sensor(33).getMeasurements()
 			#print 'sim.getTime()=', sim.getTime()
 			if math.ceil(sim.getTime()%self.counter) > 1 and math.ceil(sim.getTime()%self.counter) <= 2:
 				#print 'xform: ', xform 
@@ -39,6 +46,8 @@ class StateMachineController(ReflexController):
 				desired = se3.mul((so3.identity(),[0, 0, -0.2]), xform)
 				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
 				self.state = 'lowering'
+				#print controller.sensor(33).getMeasurements()
+				#print controller.sensor(34).getMeasurements()
 		elif self.state == 'lowering':
 			if math.ceil(sim.getTime()%self.counter) > 2 and math.ceil(sim.getTime()%self.counter) <= 3:
 				#this is needed to stop at the current position in case there's some residual velocity
