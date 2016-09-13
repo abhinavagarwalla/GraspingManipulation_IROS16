@@ -3,10 +3,9 @@ from klampt.math import vectorops,so3,se3
 from moving_base_control import *
 from reflex_control import *
 
-
-#additional modules
+#additional imported modules
 import time
-import numpy as np
+import math
 
 
 class StateMachineController(ReflexController):
@@ -18,36 +17,11 @@ class StateMachineController(ReflexController):
 		self.sim.updateWorld()
 		self.base_xform = get_moving_base_xform(self.sim.controller(0).model())
 		self.state = 'idle'
-		self.dest = [[0, 0]]
 		self.counter = 7
-
-		#hard coded for 12 balls
-		self.delta_x = 0.125
-		self.delta_y = 0.166666667
-		self.origin_x, self.origin_y = (0.0, 0.0)
-		self.half_maxX = +0.25
-		self.half_minX = -0.25
-		self.half_maxY = +0.25
-		self.half_minY = -0.25
-
-		#locations of all 12 balls
-		self.ball_locations = [[self.origin_x+self.half_minX + 0.5 * self.delta_x, self.origin_y+self.half_minY + 0.5 * self.delta_y],
-						  [self.origin_x+self.half_minX + 1.5 * self.delta_x, self.origin_y+self.half_minY + 0.5 * self.delta_y],
-						  [self.origin_x+self.half_minX + 2.5 * self.delta_x, self.origin_y+self.half_minY + 0.5 * self.delta_y],
-					  	  [self.origin_x+self.half_minX + 3.5 * self.delta_x, self.origin_y+self.half_minY + 0.5 * self.delta_y],
-					  	  [self.origin_x+self.half_minX + 0.5 * self.delta_x, self.origin_y+self.half_minY + 1.5 * self.delta_y],
-					  	  [self.origin_x+self.half_minX + 1.5 * self.delta_x, self.origin_y+self.half_minY + 1.5 * self.delta_y],
-					 	  [self.origin_x+self.half_minX + 2.5 * self.delta_x, self.origin_y+self.half_minY + 1.5 * self.delta_y],
-					 	  [self.origin_x+self.half_minX + 3.5 * self.delta_x, self.origin_y+self.half_minY + 1.5 * self.delta_y],
-					  	  [self.origin_x+self.half_minX + 0.5 * self.delta_x, self.origin_y+self.half_minY + 2.5 * self.delta_y],
-					  	  [self.origin_x+self.half_minX + 1.5 * self.delta_x, self.origin_y+self.half_minY + 2.5 * self.delta_y],
-						  [self.origin_x+self.half_minX + 2.5 * self.delta_x, self.origin_y+self.half_minY + 2.5 * self.delta_y],
-						  [self.origin_x+self.half_minX + 3.5 * self.delta_x, self.origin_y+self.half_minY + 2.5 * self.delta_y]
-				    																	          ] 
-
-		print 'in the init method: ', self.ball_locations[0]
-		# print 'shape of ball_locations: ', len(self.ball_locations)
-
+		self.ball_count = 0
+		self.dx = 0.025
+		self.dy1 = -0.0125
+		self.dy2 = +0.0125
 
 	def __call__(self,controller):
 		sim = self.sim
@@ -56,36 +30,64 @@ class StateMachineController(ReflexController):
 		ReflexController.verbose = True
 		ReflexController.__call__(self,controller)
 
-		#collect the data from lidar
-		# lidar_data = np.zeros((1, 180))
-		# lidar_data = controller.sensor(33).getMeasurements()
-		# lidar_data = np.array(lidar_data)
-		# lidar_data = lidar_data[None, :] #shape (1, 180)
-
-
-		#print 'start data: ', lidar_data[0, 0:10]
-		# start_data = lidar_data[0, 0:10];
-
-		
 		"""
-		decide the co-ordinates of the ball
+		decide the position of the ball
 		"""
-		try:
-			self.dest = self.ball_locations[0]
-			print 'Target location for the gripper: ', self.dest
-			self.ball_locations = self.ball_locations[1:]
-		except IndexError:
-			print 'No more balls in the box'
+		print 'ball count: ', self.ball_count
+		if self.ball_count == 0:
+			x = -0.1875
+			y = -0.1666666665+self.dy1
+		elif self.ball_count == 1:
+			x = -0.0625
+			y = -0.1666666665+self.dy1
+		elif self.ball_count == 2:
+			x = 0.0625
+			y = -0.1666666665+self.dy1
+		elif self.ball_count == 3:
+			x = +0.1875
+			y = -0.1666666665+self.dy1
+		elif self.ball_count == 4:
+			x = -0.1875
+			y = 4.999999858590343e-10
+		elif self.ball_count == 5:
+			x = -0.0625
+			y = 4.999999858590343e-10
+		elif self.ball_count == 6:
+			x = 0.0625
+			y = 4.999999858590343e-10
+		elif self.ball_count == 7:
+			x = 0.1875
+			y = 4.999999858590343e-10
+		elif self.ball_count == 8:
+			x = -0.1875
+			y = 0.16666666749999998+self.dy2
+		elif self.ball_count == 9:
+			x = -0.0625
+			y = 0.16666666749999998+self.dy2
+		elif self.ball_count == 10:
+			x = 0.0625
+			y = 0.16666666749999998+self.dy2
+		elif self.ball_count == 11:
+			x = -0.1875
+			y = 0.16666666749999998+self.dy2
+		else:
+			print 'done!'
 
 
-		"""
-		now go to that particular location and lift the ball and drop it in the other box
-		"""
-		dest_x, dest_y = self.dest[0], self.dest[1]
 
-		if math.ceil(sim.getTime()%self.counter) > 1 and math.ceil(sim.getTime()%self.counter) <= 2:
-				desired = se3.mul((so3.identity(),[dest_x, dest_y, 0]), xform)
+		"""
+		navigate and pick the ball
+		"""
+		print "State: " + str(self.state) + "\t\tSplit: " + str(math.ceil(sim.getTime()%self.counter)) + \
+				"\t\tTime: " + str(sim.getTime())
+		if self.state == 'idle':
+			self.hand.setCommand([math.radians(25), math.radians(25), math.radians(25), 0])
+			if math.ceil(sim.getTime()%self.counter) > 1 and math.ceil(sim.getTime()%self.counter) <= 2:
+				#print 'xform: ', xform 
+				#[0,0,-0.10]
+				desired = se3.mul((so3.identity(),[x+self.dx, y, -0.235]), xform)
 				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
+				self.ball_count += 1
 				self.state = 'lowering'
 		elif self.state == 'lowering':
 			if math.ceil(sim.getTime()%self.counter) > 2 and math.ceil(sim.getTime()%self.counter) <= 3:
@@ -95,15 +97,18 @@ class StateMachineController(ReflexController):
 				self.hand.setCommand([0.2, 0.2, 0.2, 0])
 				self.state = 'closing'
 		elif self.state == 'closing':
+			#start = time.time()
 			if math.ceil(sim.getTime()%self.counter) > 3 and math.ceil(sim.getTime()%self.counter) <= 4:
 				#the controller sends a command to the base after 1 s to lift the object
-				desired = se3.mul((so3.identity(),[dest_x, dest_y, 0]), xform)
+				#[0,0,0.10]
+				desired = se3.mul((so3.identity(),[x+self.dx, y, +0.2]),xform)
 				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
 				self.state = 'raising'
+				#print 'time for raising: ', time.time()-start
 		elif self.state == 'raising':
 			if math.ceil(sim.getTime()%self.counter) > 4 and math.ceil(sim.getTime()%self.counter) <= 5:
-				desired = se3.mul((so3.identity(),[dest_x, dest_y, 0]), xform)
-				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
+				desired = se3.mul((so3.identity(), [+0.6, 0, +0.2]), xform)
+				send_moving_base_xform_linear(controller, desired[0], desired[1], 0.5)
 				self.state = 'translate_pos_x'
 		elif self.state == 'translate_pos_x':
 			if math.ceil(sim.getTime()%self.counter) > 5 and math.ceil(sim.getTime()%self.counter) <= 6:
@@ -112,27 +117,16 @@ class StateMachineController(ReflexController):
 				self.state = 'release'
 		elif self.state == 'release':
 			if math.ceil(sim.getTime()%self.counter) > 6 and math.ceil(sim.getTime()%self.counter) <= 7:
-				desired = se3.mul((so3.identity(),[dest_x, dest_y, 0]), xform)
-				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
+				desired = se3.mul((so3.identity(), [0, 0, +0.2]), xform)
+				send_moving_base_xform_linear(controller, desired[0], desired[1], 0.5)
 				self.state = 'translate_neg_x'
 		elif self.state == 'translate_neg_x':
 			if math.ceil(sim.getTime()%self.counter) == 1.0:
 				self.state = 'idle'
 
-#navigate and find the location of the balls
-	# def navigate():
-	# 	try:
-	# 		print 'shape of ball_locations: ', len(self.ball_locations)
-	# 		self.dest = self.ball_locations[0]
-	# 		self.ball_locations = self.ball_locations[1:]
-	# 	except IndexError:
-	# 		print 'No more balls are present!'
-	# 	finally:
-	# 		return 
-
-
 		
 def make(sim,hand,dt):
 	"""The make() function returns a 1-argument function that takes a SimRobotController and performs whatever
-	processing is needed when it is invoked."""							
+	processing is needed when it is invoked."""
+	#print 'make is called...'
 	return StateMachineController(sim,hand,dt)
