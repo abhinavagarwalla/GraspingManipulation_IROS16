@@ -86,59 +86,30 @@ class StateMachineController(ReflexController):
 		print "State: " + str(self.state) + "\t\tSplit: " + str(math.ceil(sim.getTime()%self.counter)) + \
 				"\t\tTime: " + str(sim.getTime())
 		lidar_data = controller.sensor(33).getMeasurements()
+		print controller.sensor(33).getMeasurements(), len(controller.sensor(33).getMeasurements())
+		print "|Exiting"
+		# exit()
 		if self.state == 'idle':
-			self.hand.setCommand([math.radians(25), math.radians(25), math.radians(25), 0])
-			print "Going above the desired point"
-			desired = se3.mul((so3.identity(),[x+self.dx, y, 0.2]), xform)
+			lidar_data = controller.sensor(33).getMeasurements()
+			x_coordinate = [ i for i in range(len(lidar_data)) ]
+			# print "Going above the desired point"
+			desired = se3.mul((so3.identity(),[0, 0, 0.1]), xform)
 			send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
 
-			if math.ceil(sim.getTime()%self.counter) > 1 and math.ceil(sim.getTime()%self.counter) <= 2:
-				#print 'xform: ', xform 
-				#[0,0,-0.10]
-				desired = se3.mul((so3.identity(),[x+self.dx, y, -0.300]), xform)
-				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
+			# if math.ceil(sim.getTime()%self.counter) > 2 and math.ceil(sim.getTime()%self.counter) <= 4:
+				# rotate_angle = so3.rotation((-1,0,0),math.radians(90))
+				# rotate_base(controller,rotate_angle,0.1)
+
+			if math.ceil(sim.getTime()%self.counter) > 4 and math.ceil(sim.getTime()%self.counter) <= 6:
 				self.state = 'lowering'
+
 		elif self.state == 'lowering':
-			# x_coordinate = [ i for i in range(len(lidar_data)) ]
-			# plt.plot(x_coordinate,lidar_data)
-			# plt.show()
-			if math.ceil(sim.getTime()%self.counter) > 2 and math.ceil(sim.getTime()%self.counter) <= 3:
-				#this is needed to stop at the current position in case there's some residual velocity
-				controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
-				#the controller sends a command to the hand: f1,f2,f3,preshape
+			x_coordinate = [ i for i in range(len(lidar_data)) ]
+			plt.plot(x_coordinate,lidar_data)
+			plt.show()
+			path = "./" + str(2.0) + ".png"
+			plt.savefig("./z=2_with_rotation.png")
 
-				self.hand.setCommand([0.2, 0.2, 0.2, 0])
-				self.state = 'closing'
-		elif self.state == 'closing':
-			#start = time.time()
-			if math.ceil(sim.getTime()%self.counter) > 3 and math.ceil(sim.getTime()%self.counter) <= 4:
-				#the controller sends a command to the base after 1 s to lift the object
-				#[0,0,0.10]
-				desired = se3.mul((so3.identity(),[x+self.dx, y, 0.1]), xform)
-				send_moving_base_xform_linear(controller,desired[0],desired[1], 1.0)
-				self.ball_count += 1
-				self.state = 'raising'
-				#print 'time for raising: ', time.time()-start
-		elif self.state == 'raising':
-			if math.ceil(sim.getTime()%self.counter) > 4 and math.ceil(sim.getTime()%self.counter) <= 5:
-				desired = se3.mul((so3.identity(), [+0.6, 0,0.1]), xform)
-				send_moving_base_xform_linear(controller, desired[0], desired[1], 1.0)
-				self.state = 'translate_pos_x'
-		elif self.state == 'translate_pos_x':
-			if math.ceil(sim.getTime()%self.counter) > 5 and math.ceil(sim.getTime()%self.counter) <= 6:
-				#release the ball if there is any
-				self.hand.setCommand([math.radians(60), math.radians(60), math.radians(60), 0])
-
-				self.state = 'release'
-		elif self.state == 'release':
-			if math.ceil(sim.getTime()%self.counter) > 6 and math.ceil(sim.getTime()%self.counter) <= 7:
-				desired = se3.mul((so3.identity(), [0, 0, 0.2]), xform)
-				send_moving_base_xform_linear(controller, desired[0], desired[1], 0.5)
-				self.state = 'translate_neg_x'
-		elif self.state == 'translate_neg_x':
-			print " Time function : " + str(math.ceil(sim.getTime()%self.counter))
-			if math.ceil(sim.getTime()%self.counter) == 8.0:
-				self.state = 'idle'
 
 		
 def make(sim,hand,dt):
