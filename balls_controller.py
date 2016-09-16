@@ -3,7 +3,7 @@ from klampt.math import vectorops,so3,se3
 from moving_base_control import *
 from reflex_control import *
 import matplotlib.pyplot as plt
-
+import numpy as np
 #additional imported modules
 import time
 import math
@@ -23,6 +23,7 @@ class StateMachineController(ReflexController):
 		self.dx = 0.025
 		self.dy1 = -0.0125
 		self.dy2 = +0.0125
+		self.resize_data = np.zeros(360)
 
 	def __call__(self,controller):
 		sim = self.sim
@@ -30,8 +31,6 @@ class StateMachineController(ReflexController):
 		#turn this to false to turn off print statements
 		ReflexController.verbose = True
 		ReflexController.__call__(self,controller)
-		prevPos = [0,0,0.0] 
-		nextPos = [0,0,0.0]
 
 		"""
 		decide the position of the ball
@@ -91,7 +90,8 @@ class StateMachineController(ReflexController):
 		# exit()
 		if self.state == 'idle':
 			lidar_data = controller.sensor(33).getMeasurements()
-			x_coordinate = [ i for i in range(len(lidar_data)) ]
+			self.resize_data = lidar_data[0:180]
+			x_coordinate = [ i for i in range(len(self.resize_data)) ]
 			# print "Going above the desired point"
 			desired = se3.mul((so3.identity(),[0, 0, 0.1]), xform)
 			send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
@@ -104,11 +104,11 @@ class StateMachineController(ReflexController):
 				self.state = 'lowering'
 
 		elif self.state == 'lowering':
-			x_coordinate = [ i for i in range(len(lidar_data)) ]
-			plt.plot(x_coordinate,lidar_data)
+			x_coordinate = [ i for i in range(len(self.resize_data)) ]
+			plt.plot(x_coordinate,self.resize_data)
 			plt.show()
 			path = "./" + str(2.0) + ".png"
-			plt.savefig("./z=2_with_rotation.png")
+			plt.savefig("PS_1.png")
 
 
 		

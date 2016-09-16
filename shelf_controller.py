@@ -66,7 +66,7 @@ class StateMachineController(ReflexController):
 			if math.ceil(sim.getTime()%self.counter) > 1 and math.ceil(sim.getTime()%self.counter) <= 2:
 				desired = se3.mul((so3.identity(),[0,0,0.05]),xform)
 				send_moving_base_xform_linear(controller,rotate_angle,desired[1],0.5)
-				self.mypos = [0,0.0,0.05]
+				self.mypos = [0,0,0.05]
 				self.state = 'get_lidar_data'
 		elif self.state == 'get_lidar_data':
 			lidar_data = controller.sensor(33).getMeasurements()
@@ -76,18 +76,18 @@ class StateMachineController(ReflexController):
 			if math.ceil(sim.getTime()%self.counter) > 4:
 				x_coordinate = [ i for i in range(len(self.resize_data)) ]
 				plt.plot(x_coordinate,self.resize_data)
-				#plt.show()
+				# # plt.show()
 				plt.savefig("./PS_2_1.png")
-				#self.state = 'fetch'
-		# elif self.state == 'fetch':
-		# 	if math.ceil(sim.getTime()%self.counter) > 4:
-		# 		xPos = -self.resize_data[130]*math.sin(math.radians(40))
-		# 		yPos = self.resize_data[130]*math.cos(math.radians(40))
-		# 		print "\n"
-		# 		print "Destination xPos= ",self.mypos[0] - xPos," ,yPos= ",self.mypos[1] + yPos, " current= ", so3.identity()
-		# 		#self.hand.setCommand([math.radians(30), math.radians(30), math.radians(30), 0])	
-		# 		desired = se3.mul((so3.identity(),[self.mypos[0] - xPos , 0.3,0.05]),xform)
-		# 		send_moving_base_xform_linear(controller,rotate_angle,desired[1],1.0)
+				self.state = 'fetch'
+		elif self.state == 'fetch':
+			if math.ceil(sim.getTime()%self.counter) > 4:
+				xPos = -self.resize_data[130]*math.sin(math.radians(40))
+				yPos = self.resize_data[130]*math.cos(math.radians(40))
+				print "\n"
+				print "Destination xPos= ",self.mypos[0] - xPos," ,yPos= ",self.mypos[1] + yPos, " current= ", so3.identity()
+				#self.hand.setCommand([math.radians(30), math.radians(30), math.radians(30), 0])	
+				desired = se3.mul((so3.identity(),[self.mypos[0] - xPos , 0.3,0.05]),xform)
+				send_moving_base_xform_linear(controller,rotate_angle,desired[1],1.0)
 				# self.mypos = [self.mypos[0] + xPos,0.3,0.05]
 
 		# 	controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
