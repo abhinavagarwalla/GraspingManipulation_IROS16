@@ -83,7 +83,7 @@ class StateMachineController(ReflexController):
 		new method to locate the position of balls
 		"""
 		box_dims = (0.5,0.5,0.3)
-		ballsperlayer = 16
+		ballsperlayer = 12
 		w = int(math.ceil(math.sqrt(ballsperlayer)))
 		h = int(math.ceil(float(ballsperlayer)/float(w)))
 
