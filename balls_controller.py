@@ -2,47 +2,16 @@ from klampt import *
 from klampt.math import vectorops,so3,se3
 from moving_base_control import *
 from reflex_control import *
-import matplotlib.pyplot as plt
-import numpy as np
-
-#additional imported modules
 import time
-import math
-
-"""
-function to decide whether ball is in contact with fingers
-"""
-def contact_gripper(sim, controller):
-	"""
-	reading the finger sensor data
-	"""
-	f1_proximal_takktile_sensors = [sim.controller(0).sensor("f1_proximal_takktile_%d"%(i,)) for i in range(1,6)]
-	f1_distal_takktile_sensors = [sim.controller(0).sensor("f1_distal_takktile_%d"%(i,)) for i in range(1,6)]
-	f2_proximal_takktile_sensors = [sim.controller(0).sensor("f2_proximal_takktile_%d"%(i,)) for i in range(1,6)]
-	f2_distal_takktile_sensors = [sim.controller(0).sensor("f2_distal_takktile_%d"%(i,)) for i in range(1,6)]
-	f3_proximal_takktile_sensors = [sim.controller(0).sensor("f3_proximal_takktile_%d"%(i,)) for i in range(1,6)]
-	f3_distal_takktile_sensors = [sim.controller(0).sensor("f3_distal_takktile_%d"%(i,)) for i in range(1,6)]
-	contact_sensors = f1_proximal_takktile_sensors + f1_distal_takktile_sensors + f2_proximal_takktile_sensors + f2_distal_takktile_sensors + f3_proximal_takktile_sensors + f3_distal_takktile_sensors		
-	f1_contact = [s.getMeasurements()[0] for s in f1_proximal_takktile_sensors] + [s.getMeasurements()[0] for s in f1_distal_takktile_sensors]
-	f2_contact = [s.getMeasurements()[0] for s in f2_proximal_takktile_sensors] + [s.getMeasurements()[0] for s in f2_distal_takktile_sensors]
-	f3_contact = [s.getMeasurements()[0] for s in f3_proximal_takktile_sensors] + [s.getMeasurements()[0] for s in f3_distal_takktile_sensors]
-	print "Contact sensors"
-	print "  finger 1:",[int(v) for v in f1_contact]
-	print "  finger 2:",[int(v) for v in f2_contact]
-	print "  finger 3:",[int(v) for v in f3_contact]
-	# print '\n\n'
-
-	"""
-	check whether ball is held
-	"""
-	if f1_contact[5] == 1 or f2_contact[5] == 1 or f3_contact[5] == 1:
-		return True
-	elif f1_contact[4] == 1 or f2_contact[4] == 1 or f3_contact[4] == 1:
-		return True
-	else:
-		return False
-
-
+c_hand=0.35
+o_hand=0.4
+pre_hand=0.7
+close_hand=[c_hand,c_hand,c_hand,pre_hand]
+open_hand=[o_hand,o_hand,o_hand+0.1,pre_hand]
+move_speed=0.5;
+face_down=[1,0,0,0,-1,0,0,0,-1]
+start_pos=(face_down,[0,0,0.5])
+drop_pos=(face_down,[0.65,0,0.6])
 
 
 class StateMachineController(ReflexController):
@@ -50,189 +19,199 @@ class StateMachineController(ReflexController):
 	def __init__(self,sim,hand,dt):
 		self.sim = sim
 		self.hand = hand
+		self.robot=sim.world.robot(0)
 		self.dt = dt
 		self.sim.updateWorld()
 		self.base_xform = get_moving_base_xform(self.sim.controller(0).model())
 		self.state = 'idle'
-		self.counter = 11
-		self.ball_count = 0
-		self.dx = 0.0
-		self.dy1 = -0.0125
-		self.dy2 = +0.0350
-		self.X_loc = []
-		self.Y_loc = []
-		self.done = True
-		self.resize_data = np.zeros(360)
-		self.offset = 0 
-		self.average = 0 
-
+		self.last_state_end_t=sim.getTime()
+		self.target=(so3.identity(),[0,0,0])
+		self.num_ball=sim.world.numRigidObjects()
+		self.current_target=0
+		self.waiting_list=range(self.num_ball)
+		self.score=0
+		self.print_flag=1
+		self.everything_done = False
 	def __call__(self,controller):
 		sim = self.sim
-		xform = self.base_xform
+		sim.updateWorld()
+		# xform = self.base_xform
 		#turn this to false to turn off print statements
-		ReflexController.verbose = True
+		ReflexController.verbose = False
 		ReflexController.__call__(self,controller)
+		time=sim.getTime();
+		current_pos=get_moving_base_xform(self.sim.world.robot(0))
+		#controller state machine
+		if self.print_flag==1:
+			print "State:",self.state
+			# print 'Number of balls in the basket are: ', sim.world.numRigidObjects()
+			# for idx in xrange(sim.world.numRigidObjects()):
+			# 	print 'Ball #', idx+1, ' :', sim.world.rigidObject(idx).getTransform()[1]
+			self.print_flag=0
 
-		"""
-		decide the position of the ball
-		"""
-
-		print 'ball count: ', self.ball_count
-
-		"""
-		new method to locate the position of balls
-		"""
-		box_dims = (0.5,0.5,0.3)
-		ballsperlayer = 12
-		w = int(math.ceil(math.sqrt(ballsperlayer)))
-		h = int(math.ceil(float(ballsperlayer)/float(w)))
-
-		
-		if self.done == True:
-			for i in xrange(ballsperlayer):
-				x = i % w
-				y = i / w
-				x = (x - (w-1)*0.5)*box_dims[0]*0.7/(w-1)
-				y = (y - (h-1)*0.5)*box_dims[1]*0.7/(h-1)
-
-				if i == 0 or i == 1 or i == 2 or i == 3:
-					y = y + self.dy2
-
-				if i == 0 or i == 4 or i == 8:
-					x = x - 0.015 
-				# print 'balls # ', i
-				# print 'x: ', x
-				# print 'y: ', y
-				# print '\n\n'
-				self.X_loc.append(x)
-				self.Y_loc.append(y)
-			self.done = False
-
-
-		# print 'x_loc: ', self.X_loc
-		# print '\n\n'
-		# print 'y_lco: ', self.Y_loc
-		# time.sleep(5)
-		try:
-			x = self.X_loc[self.ball_count]
-			y = self.Y_loc[self.ball_count]
-			# if self.ball_count == 0 or self.ball_count == 3 or self.ball_count == 6:
-			# 	x = x + 0.015
-			# # 	y = y
-			# # elif self.ball_count == 1:
-			# # 	x = x + 0.06
-		except IndexError:
-			x = self.X_loc[ballsperlayer-1]
-			y = self.Y_loc[ballsperlayer-1]
-
-
-
-		if contact_gripper(sim, controller):
-			print 'ball is held'
-		else:
-			print 'ball is NOT held'
-
-		"""
-		navigate and pick the ball
-		"""
-		print "State: " + str(self.state) + "\t\tSplit: " + str(math.ceil((sim.getTime()+self.offset)%self.counter)) + \
-				"\t\tTime: " + str(sim.getTime())
-		print " Offset : ", self.offset
-		print " Average : ", self.average
-		if self.ball_count == ballsperlayer :
-			self.ball_count = 0
 
 		if self.state == 'idle':
-			self.hand.setCommand([math.radians(90), math.radians(90), math.radians(90), 0])
-			if math.ceil((sim.getTime()+self.offset)%self.counter) > 1 and math.ceil((sim.getTime()+self.offset)%self.counter) <= 3:
-				print "Going above the desired point.........................."
-				desired = se3.mul((so3.identity(),[x+self.dx, y, 0.1]), xform)
-				#desired = se3.mul((so3.identity(),[0,0 , 0.1]), xform)
-				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
-				self.state = 'translate_in_plane'
+			self.go_to(controller,current_pos,start_pos)
+			self.open_hand()
+			#if 2 sec of time has passed and there are balls then:
+			if time>self.last_state_end_t+1 and len(self.waiting_list)>0:
+				self.state='find_target'
+				self.last_state_end_t=time
+				self.print_flag=1
+				#if there are no balls in the basket then finish the job
+			elif len(self.waiting_list) < 1 and self.everything_done == False:
+				print "Finished! Total score is",self.score,"/",self.num_ball
+				self.everything_done = True
 
-		elif self.state == 'translate_in_plane':
-			lidar_data = controller.sensor(33).getMeasurements()
-			if math.ceil((sim.getTime()+self.offset)%self.counter) > 4 and math.ceil((sim.getTime()+self.offset)%self.counter) <= 5:	
-				self.resize_data = lidar_data[0:180]
-				x_coordinate = [ i for i in range(len(self.resize_data)) ]
-				plt.plot(x_coordinate,self.resize_data)
-				plt.savefig("PS_1_3.png")
-				sum = 0 
-				for i in range(88,92) :
-					sum = sum + self.resize_data[i]
-				avg = sum / 4
-				self.average = avg
-				#plt.show()
-				self.hand.setCommand([math.radians(25), math.radians(25), math.radians(25), 0])
-				desired = se3.mul((so3.rotation((0, 0, 1), math.radians(90)),[x+self.dx, y, 0.1]), xform)
-				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.9)
-				self.state = 'finger_reposition'
-		elif self.state == 'finger_reposition':
-			if math.ceil((sim.getTime()+self.offset)%self.counter) > 5 and math.ceil((sim.getTime()+self.offset)%self.counter) <= 6:
-				# exit(9)
-				if(self.average > 0.53) :
-					# No ball below
-					self.state = 'idle'
-					self.offset = -math.floor(sim.getTime())
-					self.ball_count += 1 
-				else : 
-					# Balls below
-					self.hand.setCommand([math.radians(25), math.radians(25), math.radians(25), 0])
-					desired = se3.mul((so3.rotation((0, 0, 1), math.radians(90)),[x+self.dx, y, -0.285]), xform)
-					send_moving_base_xform_linear(controller,desired[0],desired[1], 0.9)
-					self.state = 'lowering'
+		elif self.state=='find_target':
+			#self.target is the postion co-ordinates of the ball along with angular measures
+			self.target=self.find_target();
+			#give 0.5 sec to locate the target of the ball
+			if time>self.last_state_end_t+0.5:
+				self.state='pick_target'
+				self.last_state_end_t=time
+				self.print_flag=1
 
-		elif self.state == 'lowering':
-			# x_coordinate = [ i for i in range(len(lidar_data)) ]
-			# plt.plot(x_coordinate,lidar_data)
-			# plt.show()
-			if math.ceil((sim.getTime()+self.offset)%self.counter) > 6 and math.ceil((sim.getTime()+self.offset)%self.counter) <= 7:
+		elif self.state == 'pick_target':
+			if time<self.last_state_end_t+1:
+				#we move in the plane of the gripper and catch the ball
+				self.go_to(controller,current_pos,(self.target[0],vectorops.add(self.target[1],[0,0,0.2])))
+			elif time<self.last_state_end_t+1.5:
+				#move down along z axis
+				self.go_to(controller,current_pos,self.target)
+			elif time<self.last_state_end_t+2:
 				#this is needed to stop at the current position in case there's some residual velocity
 				controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
-				#the controller sends a command to the hand: f1,f2,f3,preshape
+				self.close_hand()
+			else:
+				#having picked the ball, raise up
+				self.state='raising'
+				self.last_state_end_t=time
+				self.print_flag=1
 
-				self.hand.setCommand([0.2, 0.2, 0.2, 0])
-				self.state = 'closing'
-		elif self.state == 'closing':
-			#start = time.time()
-			if math.ceil((sim.getTime()+self.offset)%self.counter) > 7 and math.ceil((sim.getTime()+self.offset)%self.counter) <= 8:
-				#the controller sends a command to the base after 1 s to lift the object
-				#[0,0,0.10]
-				desired = se3.mul((so3.rotation((0, 0, 1), math.radians(90)),[x+self.dx, y, 0.1]), xform)
-				send_moving_base_xform_linear(controller,desired[0],desired[1], 1.0)
-				self.ball_count += 1
-				# if self.ball_count == 1:
-				# 	self.ball_count += 1
-				self.state = 'raising'
-				#print 'time for raising: ', time.time()-start
-		elif self.state == 'raising':
-			if math.ceil((sim.getTime()+self.offset)%self.counter) > 8 and math.ceil((sim.getTime()+self.offset)%self.counter) <= 9:
-				desired = se3.mul((so3.rotation((0, 0, 1), math.radians(90)), [+0.5, 0,0.1]), xform)
-				send_moving_base_xform_linear(controller, desired[0], desired[1], 1.0)
-				self.state = 'translate_pos_x'
-		elif self.state == 'translate_pos_x':
-			if math.ceil((sim.getTime()+self.offset)%self.counter) > 9 and math.ceil((sim.getTime()+self.offset)%self.counter) <= 10:
-				#release the ball if there is any
-				self.hand.setCommand([math.radians(30), math.radians(30), math.radians(30), 0])
+		elif self.state=='raising':
+			raise_pos=(current_pos[0],[current_pos[1][0],current_pos[1][1],0.6])
+			if time<self.last_state_end_t+1 :
+				#raise along the z-co-ordinate of the picked ball
+				self.go_to(controller,current_pos,raise_pos)
+			else:
+				"""
+				check if the ball is still held by the gripper
+				"""
 
-				self.state = 'release'
-		elif self.state == 'release':
-			if math.ceil((sim.getTime()+self.offset)%self.counter) > 10 and math.ceil((sim.getTime()+self.offset)%self.counter) <= 11:
-				desired = se3.mul((so3.rotation((0, 0, 1), math.radians(90)), [0, 0, 0.1]), xform)
-				send_moving_base_xform_linear(controller, desired[0], desired[1], 0.5)
-				self.state = 'translate_neg_x'
-		elif self.state == 'translate_neg_x':
-			#print " Time function : " + str(math.ceil((sim.getTime()+self.offset)%self.counter))
-			if math.ceil((sim.getTime()+self.offset)%self.counter) == 1.0:
-				self.state = 'idle'
+				if self.contact_gripper(sim, controller):
+					print 'Ball is in contact with gripper!'
+					self.state='move_to_drop_position'
+					self.last_state_end_t=time
+					self.print_flag=1
+				else:
+					print 'Ball is not in contact with gripper'
+					print 'Finding the target...'
+					self.state = 'idle'
+					self.last_state_end_t = time
 
-	
+		elif self.state == 'move_to_drop_position':
+			if time<self.last_state_end_t+1.7 :
+				self.go_to(controller,current_pos,drop_pos)
+			else:
+				self.state='drop'
+				self.last_state_end_t=time
+				self.print_flag=1
 
+		elif self.state=='drop':
+			if time<self.last_state_end_t+0.5 :
+				self.open_hand()
+			else:
+				self.state='idle'
+				self.last_state_end_t=time
+				self.print_flag=1
+				self.check_target()
+
+	def at_destination(self,current_pos,goal_pos):
+		if se3.distance(current_pos,goal_pos)<0.05:
+			return True
+		else:
+			return False
+
+	def find_target(self):
+		self.current_target=self.waiting_list[0]
+		best_p=self.sim.world.rigidObject(self.current_target).getTransform()[1]
+		for i in self.waiting_list:
+			p=self.sim.world.rigidObject(i).getTransform()[1]
+			if p[2]>best_p[2]:
+				self.current_target=i
+				best_p=p
+			elif vectorops.distance([0,0],[p[0],p[1]])<vectorops.distance([0,0],[best_p[0],best_p[1]]):
+				self.current_target=i
+				best_p=p
+		d_x=0
+		if best_p[0]>0.15:
+			d_x =- 0.025
+			# print 'too close to the wall!!'
+		elif best_p[0]<-0.15:
+			d_x = +0.025
+			# print 'too close to the wall!!'
+		target=(face_down,vectorops.add(best_p,[d_x,0,0.16]))
+		return target
+
+	def go_to(self,controller,current_pos,goal_pos):
+		#t is the time calculated for smooth transition
+		t=vectorops.distance(current_pos[1],goal_pos[1])/move_speed
+		#goal_pos[1] is the co-ordinate of the ball 
+		#goal_pos[0] is the angle specification of the ball
+		send_moving_base_xform_linear(controller,goal_pos[0],goal_pos[1],t);
+
+	def close_hand(self):
+		self.hand.setCommand(close_hand)
+
+	def open_hand(self):
+		self.hand.setCommand(open_hand)
+
+	def check_target(self):
+		#this value gives the current co-ordinates of the ball
+		#p is list of 3 co-ordinates of mentioned ball number
+		p=self.sim.world.rigidObject(self.current_target).getTransform()[1]
+		if p[0]>0.25 or p[0]<-0.25 or p[1]>0.25 or p[1]<-0.25:
+			self.waiting_list.remove(self.current_target)
+		if p[0]<0.95 and p[0]>0.45 and p[1]<0.25 and p[1]>-0.25:
+			self.score=self.score+1
+			print 'Ball #', self.current_target, ' is placed in the target box!\n\n'
+		else:
+			print 'Ball #', self.current_target, ' is not placed in the target box\n\n'
+		print 'Going over to next cycle...'
+
+	def contact_gripper(self, sim, controller):
+		"""
+		reading finger sensor data
+		"""
+		f1_proximal_takktile_sensors = [sim.controller(0).sensor("f1_proximal_takktile_%d"%(i,)) for i in range(1,6)]
+		f1_distal_takktile_sensors = [sim.controller(0).sensor("f1_distal_takktile_%d"%(i,)) for i in range(1,6)]
+		f2_proximal_takktile_sensors = [sim.controller(0).sensor("f2_proximal_takktile_%d"%(i,)) for i in range(1,6)]
+		f2_distal_takktile_sensors = [sim.controller(0).sensor("f2_distal_takktile_%d"%(i,)) for i in range(1,6)]
+		f3_proximal_takktile_sensors = [sim.controller(0).sensor("f3_proximal_takktile_%d"%(i,)) for i in range(1,6)]
+		f3_distal_takktile_sensors = [sim.controller(0).sensor("f3_distal_takktile_%d"%(i,)) for i in range(1,6)]
+		contact_sensors = f1_proximal_takktile_sensors + f1_distal_takktile_sensors + f2_proximal_takktile_sensors + f2_distal_takktile_sensors + f3_proximal_takktile_sensors + f3_distal_takktile_sensors		
+		f1_contact = [s.getMeasurements()[0] for s in f1_proximal_takktile_sensors] + [s.getMeasurements()[0] for s in f1_distal_takktile_sensors]
+		f2_contact = [s.getMeasurements()[0] for s in f2_proximal_takktile_sensors] + [s.getMeasurements()[0] for s in f2_distal_takktile_sensors]
+		f3_contact = [s.getMeasurements()[0] for s in f3_proximal_takktile_sensors] + [s.getMeasurements()[0] for s in f3_distal_takktile_sensors]
+		# print "Contact sensors"
+		# print "  finger 1:",[int(v) for v in f1_contact]
+		# print "  finger 2:",[int(v) for v in f2_contact]
+		# print "  finger 3:",[int(v) for v in f3_contact]
+		# # print '\n\n'
+
+		"""
+		check whether ball is held
+		"""
+		if f1_contact[5] == 1 or f2_contact[5] == 1 or f3_contact[5] == 1:
+			return True
+		elif f1_contact[4] == 1 or f2_contact[4] == 1 or f3_contact[4] == 1:
+			return True
+		else:
+			return False
+
+		
 def make(sim,hand,dt):
 	"""The make() function returns a 1-argument function that takes a SimRobotController and performs whatever
 	processing is needed when it is invoked."""
-	#print 'make is called...'
 	return StateMachineController(sim,hand,dt)
-
-
