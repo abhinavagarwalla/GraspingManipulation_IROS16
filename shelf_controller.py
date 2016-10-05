@@ -177,6 +177,22 @@ class StateMachineController(ReflexController):
 		#need to manually call the hand emulator
 		self.hand.process({},self.dt)
 
+	def rotate_base(controller,R,dt):
+		"""For a moving base robot model, send a command to move to the
+		rotation matrix R and translation t using linear interpolation
+		over the duration dt.
+
+		Note: with the reflex model, can't currently set hand commands
+		and linear base commands simultaneously
+		"""
+		q = controller.getCommandedConfig()
+		roll,pitch,yaw = so3.rpy(R)
+		q[3]=yaw
+		q[4]=pitch
+		q[5]=roll
+		controller.setLinear(q,dt)
+
+
 	def find_nearest(self , x_pos):
 		object_id = 0 ;
 		error = 10
