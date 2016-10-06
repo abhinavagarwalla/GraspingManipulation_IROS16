@@ -3,7 +3,9 @@ from klampt.math import vectorops,so3,se3
 from moving_base_control import *
 from reflex_control import *
 import time
-c_hand=0.35
+import math
+
+c_hand=0.33
 o_hand=0.4
 pre_hand=0.7
 close_hand=[c_hand,c_hand,c_hand,pre_hand]
@@ -44,11 +46,7 @@ class StateMachineController(ReflexController):
 		#controller state machine
 		if self.print_flag==1:
 			print "State:",self.state
-			# print 'Number of balls in the basket are: ', sim.world.numRigidObjects()
-			# for idx in xrange(sim.world.numRigidObjects()):
-			# 	print 'Ball #', idx+1, ' :', sim.world.rigidObject(idx).getTransform()[1]
 			self.print_flag=0
-
 
 		if self.state == 'idle':
 			self.go_to(controller,current_pos,start_pos)
@@ -85,10 +83,15 @@ class StateMachineController(ReflexController):
 				self.close_hand()
 			else:
 				#having picked the ball, raise up
+				self.state='closing'
+				self.last_state_end_t=time
+				self.print_flag=1
+		elif self.state == 'closing':
+			if self.contact_gripper(sim, controller) == True or time> self.last_state_end_t+0.5:
+				#having picked the ball, raise up
 				self.state='raising'
 				self.last_state_end_t=time
 				self.print_flag=1
-
 		elif self.state=='raising':
 			raise_pos=(current_pos[0],[current_pos[1][0],current_pos[1][1],0.6])
 			if time<self.last_state_end_t+1 :
@@ -98,7 +101,6 @@ class StateMachineController(ReflexController):
 				"""
 				check if the ball is still held by the gripper
 				"""
-
 				if self.contact_gripper(sim, controller):
 					print 'Ball is in contact with gripper!'
 					self.state='move_to_drop_position'
@@ -119,7 +121,7 @@ class StateMachineController(ReflexController):
 				self.print_flag=1
 
 		elif self.state=='drop':
-			if time<self.last_state_end_t+0.5 :
+			if time<self.last_state_end_t+0.5:
 				self.open_hand()
 			else:
 				self.state='idle'
@@ -134,19 +136,31 @@ class StateMachineController(ReflexController):
 			return False
 
 	def find_target(self):
-		self.current_target=self.waiting_list[0]
-		best_p=self.sim.world.rigidObject(self.current_target).getTransform()[1]
+		lob = list()
+		# self.current_target=self.waiting_list[0]
+		# best_p=self.sim.world.rigidObject(self.current_target).getTransform()[1]
 		for i in self.waiting_list:
 			p=self.sim.world.rigidObject(i).getTransform()[1]
-			if p[2]>best_p[2]:
-				self.current_target=i
-				best_p=p
-			elif vectorops.distance([0,0],[p[0],p[1]])<vectorops.distance([0,0],[best_p[0],best_p[1]]):
-				self.current_target=i
-				best_p=p
+			lob.append(( i, math.sqrt((p[0]*p[0]) + (p[1]*p[1]) + (p[2]*p[2]))))
+		lob.sort(key=lambda x: x[1])
+		for bestlob in lob:
+			bestlobp = self.sim.world.rigidObject(bestlob[0]).getTransform()[1]
+			upflag = 0
+			for i in self.waiting_list:
+				if i == bestlob[0]:
+					continue
+				p=self.sim.world.rigidObject(i).getTransform()[1]
+				if math.sqrt(pow(p[0]-bestlobp[0],2) + pow(p[1]-bestlobp[1],2)) < 0.11 and p[2] > bestlobp[2]:
+					upflag = 1
+					break
+			if upflag == 0:
+				self.current_target = bestlob[0]
+				best_p = bestlobp
+				break
+
 		d_x=0
 		if best_p[0]>0.15:
-			d_x =- 0.025
+			d_x =- 0.030
 			# print 'too close to the wall!!'
 		elif best_p[0]<-0.15:
 			d_x = +0.025
