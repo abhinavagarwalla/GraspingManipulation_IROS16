@@ -34,6 +34,7 @@ class StateMachineController(ReflexController):
 		self.score=0
 		self.print_flag=1
 		self.everything_done = False
+
 	def __call__(self,controller):
 		sim = self.sim
 		sim.updateWorld()
@@ -47,7 +48,6 @@ class StateMachineController(ReflexController):
 		if self.print_flag==1:
 			print "State:",self.state
 			self.print_flag=0
-
 		if self.state == 'idle':
 			self.go_to(controller,current_pos,start_pos)
 			self.open_hand()
