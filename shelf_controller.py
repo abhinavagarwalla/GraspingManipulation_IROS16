@@ -197,6 +197,10 @@ class StateMachineController(ReflexController):
 				self.state = 'before_fetch_x'
 		elif self.state == 'before_fetch_x':
 			if time > self.last_state_endt + 1:
+				if self.target[0] >= (0.2 - 0.072):
+					self.target[0] = (0.2 - 0.072)
+				elif self.target[0] <= (-0.2 + 0.060):
+					self.target[0] = (-0.2 + 0.060)
 				desired = se3.mul((so3.identity(),[self.target[0] , 0, self.lidar_height]),xform)
 				send_moving_base_xform_linear(controller,rotate_angle,desired[1],0.5)
 				self.state  = 'before_fetch_y'
