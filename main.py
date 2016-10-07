@@ -19,6 +19,7 @@ import importlib
 import os
 import time
 import sys
+import random
 
 box_dims = (0.5,0.5,0.3)
 shelf_dims = (0.4,0.4,0.3)
@@ -278,7 +279,11 @@ def launch_balls(robotname,num_balls=10):
 		w = int(math.ceil(math.sqrt(ballsperlayer)))
 		h = int(math.ceil(float(ballsperlayer)/float(w)))
 		for i in xrange(ballsperlayer):
-			bid = world.loadElement("data/objects/sphere_10cm.obj")
+			randomno = random.randint(1, 10)
+			if randomno > 5:
+				bid = world.loadElement("data/objects/sphere_10cm.obj")
+			else:
+				bid = world.loadElement("data/objects/sphere_5cm.obj")
 			if bid < 0:
 				raise RuntimeError("data/objects/sphere_10cm.obj couldn't be loaded")
 			ball = world.rigidObject(world.numRigidObjects()-1)

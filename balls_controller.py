@@ -5,7 +5,8 @@ from reflex_control import *
 import time
 import math
 
-c_hand=0.33
+c_hand=0.25
+c_hand = 0.1
 o_hand=0.4
 pre_hand=0.7
 close_hand=[c_hand,c_hand,c_hand,pre_hand]
@@ -52,7 +53,7 @@ class StateMachineController(ReflexController):
 			self.go_to(controller,current_pos,start_pos)
 			self.open_hand()
 			#if 2 sec of time has passed and there are balls then:
-			if time>self.last_state_end_t+1 and len(self.waiting_list)>0:
+			if time > self.last_state_end_t+1 and len(self.waiting_list)>0:
 				self.state='find_target'
 				self.last_state_end_t=time
 				self.print_flag=1
@@ -63,12 +64,11 @@ class StateMachineController(ReflexController):
 
 		elif self.state=='find_target':
 			#self.target is the postion co-ordinates of the ball along with angular measures
-			self.target=self.find_target();
 			#give 0.5 sec to locate the target of the ball
-			if time>self.last_state_end_t+0.5:
-				self.state='pick_target'
-				self.last_state_end_t=time
-				self.print_flag=1
+			self.target=self.find_target();
+			self.state='pick_target'
+			self.last_state_end_t=time
+			self.print_flag=1
 
 		elif self.state == 'pick_target':
 			if time<self.last_state_end_t+1:
@@ -77,21 +77,51 @@ class StateMachineController(ReflexController):
 			elif time<self.last_state_end_t+1.5:
 				#move down along z axis
 				self.go_to(controller,current_pos,self.target)
-			elif time<self.last_state_end_t+2:
-				#this is needed to stop at the current position in case there's some residual velocity
-				controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
-				self.close_hand()
 			else:
-				#having picked the ball, raise up
-				self.state='closing'
-				self.last_state_end_t=time
-				self.print_flag=1
+				self.state = 'close'
+				self.last_state_end_t = time
+				self.print_flag = 1
+
+		elif self.state == 'close':
+				#this is needed to stop at the current position in case there's some residual velocity
+				if time > self.last_state_end_t + 1:
+				 # and time < self.last_state_end_t + 1.5:
+					controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
+					self.close_hand()
+				# elif time > self.last_state_end_t + 1.5:
+				# 	for i in range(40,20,-1):
+				# 		self.hand.setCommand([i/100,i/100,i/100,0.7])
+				# 		if self.contact_gripper(sim, controller):
+				# 			break
+				# 	self.hand.setCommand([(i)/100,(i)/100,(i)/100,0.7])							
+					#having picked the ball, raise up
+					self.state='checking'
+					self.last_state_end_t=time
+					self.print_flag=1
+
+		elif self.state == 'checking':
+			if time < self.last_state_end_t + 2:
+				if self.contact_gripper(sim, controller):
+					if time < self.last_state_end_t + 1.5:
+						# controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
+						self.hand.setCommand(self.hand.getCommand())
+					else:
+						self.state='closing'
+						self.last_state_end_t=time
+						self.print_flag=1
+			elif time > self.last_state_end_t + 2:
+					self.state='idle'
+					self.last_state_end_t=time
+					self.print_flag=1
+
+
 		elif self.state == 'closing':
-			if self.contact_gripper(sim, controller) == True or time> self.last_state_end_t+0.5:
+			if time > self.last_state_end_t + 1:
 				#having picked the ball, raise up
 				self.state='raising'
 				self.last_state_end_t=time
 				self.print_flag=1
+
 		elif self.state=='raising':
 			raise_pos=(current_pos[0],[current_pos[1][0],current_pos[1][1],0.6])
 			if time<self.last_state_end_t+1 :
@@ -122,6 +152,7 @@ class StateMachineController(ReflexController):
 
 		elif self.state=='drop':
 			if time<self.last_state_end_t+0.5:
+				controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
 				self.open_hand()
 			else:
 				self.state='idle'
