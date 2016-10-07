@@ -34,8 +34,9 @@ class StateMachineController(ReflexController):
 		self.state = 'idle'
 		self.counter = 2
 		self.num_objects=sim.world.numRigidObjects()
-		self.waiting_list=range(self.num_objects)
-		self.default_list = range(self.num_objects)
+		self.waiting_list = range(self.num_objects)
+		self.default_list_counter = np.zeros(self.num_objects)
+		self.ntries = 6
 		self.target=[0,0,0]
 		self.current_target=0
 		self.score=0
@@ -61,6 +62,7 @@ class StateMachineController(ReflexController):
 		rotate_angle = so3.rotation((-1,0,0),math.radians(90))
 		rotate_angle1 = so3.rotation((-1,0,0),math.radians(180))
 
+		self.update_waiting_list()
 		#print the contact sensors... you can safely take this out if you don't want to use it
 		# try:
 		# 	f1_contact = [s.getMeasurements()[0] for s in f1_proximal_takktile_sensors] + [s.getMeasurements()[0] for s in f1_distal_takktile_sensors]
@@ -257,33 +259,52 @@ class StateMachineController(ReflexController):
 
 
 	def find_nearest(self , x_pos):
-		object_id = 0 ;
+		object_id = -1;
 		error = 10
 		for i in self.waiting_list :
-			p=self.sim.world.rigidObject(i).getTransform()[1]
-			if math.fabs(p[0] - x_pos) < error :
-				error = math.fabs(p[0] - x_pos)
-				object_id = i 
+			if self.default_list_counter[i] < self.ntries:
+				p=self.sim.world.rigidObject(i).getTransform()[1]
+				if math.fabs(p[0] - x_pos) < error :
+					error = math.fabs(p[0] - x_pos)
+					object_id = i
+		if object_id==-1:
+			object_id = np.argmin(self.default_list_counter)
+		self.default_list_counter[object_id] = self.default_list_counter[object_id]+1
 		return self.sim.world.rigidObject(object_id).getTransform()[1]
 
 
 	def find_target(self):
-		self.current_target=self.waiting_list[0]
-		best_p=self.sim.world.rigidObject(self.current_target).getTransform()[1]
+		self.current_target=-1
+		best_p=[10000,0,0]#self.sim.world.rigidObject(self.current_target).getTransform()[1]
 		for i in self.waiting_list:
-			p=self.sim.world.rigidObject(i).getTransform()[1]
-			print " Index : " , i , p[0] , p[1] , p[2]
-			if math.fabs(p[0]) < math.fabs(best_p[0]) :
-				self.current_target=i
-				best_p=p
+			if self.default_list_counter[i] < self.ntries:
+				p=self.sim.world.rigidObject(i).getTransform()[1]
+				print " Index : " , i , p[0] , p[1] , p[2]
+				if math.fabs(p[0]) < math.fabs(best_p[0]) :
+					self.current_target=i
+					best_p = p
+		if self.current_target==-1:
+			self.current_target = np.argmin(self.default_list_counter)
+			best_p = self.sim.world.rigidObject(self.current_target).getTransform()[1]
+		self.default_list_counter[self.current_target] = self.default_list_counter[self.current_target]+1
 		return best_p
+
+	def update_waiting_list(self):
+		# print "Updating Waiting List", len(self.waiting_list)
+		for i in self.waiting_list:
+			p = self.sim.world.rigidObject(i).getTransform()[1]
+			if p[1] < 0.2:
+				print "Removing an element from waiting list"
+				self.waiting_list.remove(i)
+				self.default_list_counter[i] = 10000
+		# print "Final Length..", len(self.waiting_list)
 
 	def check_target(self):
 		#this value gives the current co-ordinates of the ball
 		#p is list of 3 co-ordinates of mentioned ball number
 		p=self.sim.world.rigidObject(self.current_target).getTransform()[1]
-		if p[1] < 0.2 :
-			self.waiting_list.remove(self.current_target)
+		# if p[1] < 0.2 #Now handled by update_waiting_list()
+		# 	self.waiting_list.remove(self.current_target) 
 		if p[0]<0.2 and p[0]>-0.25 and p[1]<0.2 and p[1]>-0.2:
 			self.score=self.score+1
 			print 'Ball #', self.current_target, ' is placed in the target box!\n\n'
