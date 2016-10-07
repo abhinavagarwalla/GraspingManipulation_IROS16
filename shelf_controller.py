@@ -61,6 +61,7 @@ class StateMachineController(ReflexController):
 
 		rotate_angle = so3.rotation((-1,0,0),math.radians(90))
 		rotate_angle1 = so3.rotation((-1,0,0),math.radians(180))
+		rotate_angle2 = so3.rotation((-1,0,0),math.radians(270))
 
 		self.update_waiting_list()
 		#print the contact sensors... you can safely take this out if you don't want to use it
@@ -82,14 +83,61 @@ class StateMachineController(ReflexController):
 				self.everything_done = True
 
 			elif len(self.waiting_list)>0:
-				if time > self.last_state_endt + 1 and time < self.last_state_endt + 2:
-					self.hand.setCommand([math.radians(200), math.radians(200), math.radians(200), 0])
-					rotate_base(controller,rotate_angle,0.1)
-				elif time > self.last_state_endt + 2 and time < self.last_state_endt + 3:
-					desired = se3.mul((so3.identity(),[0.0,0.0,self.lidar_height]),xform)
-					send_moving_base_xform_linear(controller,rotate_angle,desired[1],0.5)
+				if time < 600:
+					if time > self.last_state_endt + 1 and time < self.last_state_endt + 2:
+						self.hand.setCommand([math.radians(200), math.radians(200), math.radians(200), 0])
+						rotate_base(controller,rotate_angle,0.1)
+					elif time > self.last_state_endt + 2 and time < self.last_state_endt + 3:
+						desired = se3.mul((so3.identity(),[0.0,0.0,self.lidar_height]),xform)
+						send_moving_base_xform_linear(controller,rotate_angle,desired[1],0.5)
+						self.last_state_endt = time
+						self.state = 'set_pos'
+				elif time > 600:
 					self.last_state_endt = time
-					self.state = 'set_pos'
+					# self.state = 'set_pos'
+					self.state = 'frust_go_up'
+
+		elif self.state == 'frust_go_up':
+			if time > self.last_state_endt + 1:
+				desired = se3.mul((so3.identity(),[0.0,0.0,0.285]),xform)
+				send_moving_base_xform_linear(controller,rotate_angle1,desired[1],0.5)
+				self.last_state_endt = time
+				self.state = 'frust_open'
+
+		elif self.state == 'frust_open':
+			if time > self.last_state_endt + 1:
+				self.hand.setCommand([math.radians(200), math.radians(200), math.radians(200), 0])
+				rotate_base(controller,rotate_angle,0.1)
+				self.last_state_endt = time
+				self.state = 'frust_go_in'
+
+		elif self.state == 'frust_go_in':
+			if time > self.last_state_endt + 1:
+				desired = se3.mul((so3.identity(),[0.0,0.80,0.285]),xform)
+				send_moving_base_xform_linear(controller,rotate_angle1,desired[1],0.5)
+				self.last_state_endt = time
+				self.state = 'frust_rotate'
+
+		elif self.state == 'frust_rotate':
+			if time > self.last_state_endt + 1:
+				desired = se3.mul((so3.identity(),[0.0,0.80,0.22]),xform)
+				send_moving_base_xform_linear(controller,rotate_angle2,desired[1],0.5)
+				self.last_state_endt = time
+				self.state = 'frust_go_down'
+
+		elif self.state == 'frust_go_down':
+			if time > self.last_state_endt + 1:
+				desired = se3.mul((so3.identity(),[0.0,0.80,0.025]),xform)
+				send_moving_base_xform_linear(controller,rotate_angle2,desired[1],0.5)
+				self.last_state_endt = time
+				self.state = 'frust_bring_back'
+
+		elif self.state == 'frust_bring_back':
+			if time > self.last_state_endt + 1:
+				desired = se3.mul((so3.identity(),[0.0,0.0,0.025]),xform)
+				send_moving_base_xform_linear(controller,rotate_angle2,desired[1],0.5)
+				self.last_state_endt = time
+				self.state = 'idle'
 
 		elif self.state == 'set_pos':
 			if math.ceil((sim.getTime()+self.offset)%self.counter) > 1 and math.ceil((sim.getTime()+self.offset)%self.counter) <= 2:
@@ -170,16 +218,16 @@ class StateMachineController(ReflexController):
 				self.state = 'grasp'
 		elif self.state == 'grasp':
 			if time > self.last_state_endt + 1:
-				if self.contact_gripper(sim, controller):
-					desired = se3.mul((so3.identity(),[0, -0.15, 0.07]), xform)
-					send_moving_base_xform_linear(controller,rotate_angle,desired[1], 1.0)
-					self.last_state_endt = time
-					self.state = 'backward'
-				else :
-					print 'Ball is not in contact with gripper'
-					self.last_state_endt = time
-					self.state = 'idle'
-					self.offset = -math.floor(sim.getTime())
+				# if self.contact_gripper(sim, controller):
+				desired = se3.mul((so3.identity(),[0, -0.15, 0.07]), xform)
+				send_moving_base_xform_linear(controller,rotate_angle,desired[1], 1.0)
+				self.last_state_endt = time
+				self.state = 'backward'
+				# else :
+				# 	print 'Ball is not in contact with gripper'
+				# 	self.last_state_endt = time
+				# 	self.state = 'idle'
+				# 	self.offset = -math.floor(sim.getTime())
 		elif self.state =='backward':
 			if time > self.last_state_endt + 1:
 				self.hand.setCommand([math.radians(30), math.radians(30), math.radians(30), 0])
@@ -193,7 +241,11 @@ class StateMachineController(ReflexController):
 				self.check_target()
 		elif self.state == 'move_in_front':
 			if time > self.last_state_endt + 2:	
-				desired = se3.mul((so3.identity(),[self.target[0],0.0,0.25]),xform)
+				if self.target[0] >= (0.2 - 0.072):
+					self.target[0] = (0.2 - 0.072)
+				elif self.target[0] <= (-0.2 + 0.060):
+					self.target[0] = (-0.2 + 0.060)
+				desired = se3.mul((so3.identity(),[self.target[0],0.0,0.28]),xform)
 				send_moving_base_xform_linear(controller,rotate_angle1,desired[1],0.5)
 				self.last_state_endt = time
 				self.state = 'moveinfront_closefingers'
@@ -204,7 +256,7 @@ class StateMachineController(ReflexController):
 				self.last_state_endt = time
 		elif self.state == 'go_inside':
 			if time > self.last_state_endt + 1:	
-				desired = se3.mul((so3.identity(),[self.target[0],self.target[1],0.25]),xform)
+				desired = se3.mul((so3.identity(),[self.target[0],self.target[1],0.28]),xform)
 				send_moving_base_xform_linear(controller,rotate_angle1,desired[1],0.5)
 				self.last_state_endt = time
 				self.state = 'grasp_from_top'

@@ -5,10 +5,9 @@ from reflex_control import *
 import time
 import math
 
-c_hand=0.25
 c_hand = 0.1
 o_hand=0.4
-pre_hand=0.7
+pre_hand=1.0
 close_hand=[c_hand,c_hand,c_hand,pre_hand]
 open_hand=[o_hand,o_hand,o_hand+0.1,pre_hand]
 move_speed=0.5;
@@ -86,13 +85,16 @@ class StateMachineController(ReflexController):
 				#this is needed to stop at the current position in case there's some residual velocity
 				if time > self.last_state_end_t + 1:
 				 # and time < self.last_state_end_t + 1.5:
-					controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
-					self.close_hand()
+					# controller.setPIDCommsand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
+					# self.close_hand()
 				# elif time > self.last_state_end_t + 1.5:
-				# 	for i in range(40,20,-1):
-				# 		self.hand.setCommand([i/100,i/100,i/100,0.7])
-				# 		if self.contact_gripper(sim, controller):
-				# 			break
+					for i in range(40,20,-1):
+						self.hand.setCommand([i/100,i/100,i/100,0.7])
+						for j in range(10000):
+							k=1
+   						print self.hand.getCommand()
+						if self.contact_gripper(sim, controller):
+							break
 				# 	self.hand.setCommand([(i)/100,(i)/100,(i)/100,0.7])							
 					#having picked the ball, raise up
 					self.state='checking'
@@ -100,19 +102,17 @@ class StateMachineController(ReflexController):
 					self.print_flag=1
 
 		elif self.state == 'checking':
-			if time < self.last_state_end_t + 2:
-				if self.contact_gripper(sim, controller):
-					if time < self.last_state_end_t + 1.5:
-						# controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
-						self.hand.setCommand(self.hand.getCommand())
-					else:
-						self.state='closing'
-						self.last_state_end_t=time
-						self.print_flag=1
-			elif time > self.last_state_end_t + 2:
-					self.state='idle'
-					self.last_state_end_t=time
-					self.print_flag=1
+			if time > self.last_state_end_t + 1:
+				print self.hand.getCommand()
+			# 	if self.contact_gripper(sim, controller):
+			# 		if time > self.last_state_end_t + 1.5:
+						
+			# 			controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
+			# 			self.hand.setCommand(self.hand.getCommand())						
+			# elif time > self.last_state_end_t + 2:
+				self.state='closing'
+				self.last_state_end_t=time
+				self.print_flag=1
 
 
 		elif self.state == 'closing':
