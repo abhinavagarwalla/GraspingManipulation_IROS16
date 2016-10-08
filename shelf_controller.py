@@ -63,6 +63,7 @@ class StateMachineController(ReflexController):
 		rotate_angle1 = so3.rotation((-1,0,0),math.radians(180))
 
 		self.update_waiting_list()
+		# print at, len(at)
 		#print the contact sensors... you can safely take this out if you don't want to use it
 		# try:
 		# 	f1_contact = [s.getMeasurements()[0] for s in f1_proximal_takktile_sensors] + [s.getMeasurements()[0] for s in f1_distal_takktile_sensors]
@@ -100,10 +101,10 @@ class StateMachineController(ReflexController):
 				filtered_data = signal.savgol_filter(self.plot_data, 11, 3)
 				self.plot_data = filtered_data				
 				plt.plot(x_coordinate,self.plot_data,'g')
-				# plt.savefig("./old.png")
-				# plt.show()
-				# plt.cla()
-				# plt.clf()
+				plt.savefig("./old.png")
+				plt.show()
+				plt.cla()
+				plt.clf()
 
 				local_min = filtered_data.max()
 				local_min_idx = -1

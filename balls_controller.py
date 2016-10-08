@@ -45,6 +45,14 @@ class StateMachineController(ReflexController):
 		ReflexController.__call__(self,controller)
 		time=sim.getTime();
 		current_pos=get_moving_base_xform(self.sim.world.robot(0))
+
+		if self.state=="close":
+			file = open("force_sensor_10_link_14.log",'a')
+			file.write(str(self.state)+",")
+			file.write(','.join(str(e) for e in controller.sensor(34).getMeasurements()))
+			file.write("\n")
+			file.close()
+
 		#controller state machine
 		if self.print_flag==1:
 			print "State:",self.state

@@ -280,10 +280,10 @@ def launch_balls(robotname,num_balls=10):
 		h = int(math.ceil(float(ballsperlayer)/float(w)))
 		for i in xrange(ballsperlayer):
 			randomno = random.randint(1, 10)
-			if randomno > 5:
-				bid = world.loadElement("data/objects/sphere_10cm.obj")
-			else:
-				bid = world.loadElement("data/objects/sphere_5cm.obj")
+			# if randomno > 5:
+			# 	bid = world.loadElement("data/objects/sphere_10cm.obj")
+			# else:
+			bid = world.loadElement("data/objects/sphere_10cm.obj")
 			if bid < 0:
 				raise RuntimeError("data/objects/sphere_10cm.obj couldn't be loaded")
 			ball = world.rigidObject(world.numRigidObjects()-1)
