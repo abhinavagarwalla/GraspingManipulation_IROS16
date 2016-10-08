@@ -4,6 +4,7 @@ from moving_base_control import *
 from reflex_control import *
 import time as T
 import math
+import numpy as np
 
 # c_hand = 0.25 # for 5cm ball
 c_hand_10 = 0.33
@@ -36,6 +37,8 @@ class StateMachineController(ReflexController):
 		self.num_ball=sim.world.numRigidObjects()
 		self.current_target=0
 		self.waiting_list=range(self.num_ball)
+		self.default_list_counter=np.zeros(self.num_ball)
+		self.ntries=6
 		self.score=0
 		self.print_flag=1
 		self.everything_done = False
@@ -59,6 +62,8 @@ class StateMachineController(ReflexController):
 		if self.print_flag==1:
 			print "State:",self.state
 			self.print_flag=0
+
+		self.update_waiting_list()
 
 		# start_pos=(self.face_down, [0, 0, 0.6])
 		# self.go_to(controller,current_pos,start_pos)
@@ -203,8 +208,13 @@ class StateMachineController(ReflexController):
 		# self.current_target=self.waiting_list[0]
 		# best_p=self.sim.world.rigidObject(self.current_target).getTransform()[1]
 		for i in self.waiting_list:
-			p=self.sim.world.rigidObject(i).getTransform()[1]
-			lob.append(( i, math.sqrt((p[0]*p[0]) + (p[1]*p[1]) + (p[2]*p[2]))))
+			if self.default_list_counter[i] < self.ntries:
+				p=self.sim.world.rigidObject(i).getTransform()[1]
+				lob.append(( i, math.sqrt((p[0]*p[0]) + (p[1]*p[1]) + (p[2]*p[2]))))
+		if len(lob)==0:
+			tmp = np.argmin(self.default_list_counter)
+			p=self.sim.world.rigidObject(tmp).getTransform()[1]
+			lob.append(( tmp, math.sqrt((p[0]*p[0]) + (p[1]*p[1]) + (p[2]*p[2]))))
 		lob.sort(key=lambda x: x[1])
 		for bestlob in lob:
 			bestlobp = self.sim.world.rigidObject(bestlob[0]).getTransform()[1]
@@ -221,6 +231,8 @@ class StateMachineController(ReflexController):
 				best_p = bestlobp
 				print "best lob", best_p
 				break
+
+		self.default_list_counter[self.current_target] = self.default_list_counter[self.current_target]+1
 
 		#edge conditions...rotate about z-axis by 90 degrees
 		d_x = 0
@@ -256,12 +268,20 @@ class StateMachineController(ReflexController):
 	def open_hand(self):
 		self.hand.setCommand(open_hand)
 
+	def update_waiting_list(self):
+		# print "Updating Waiting List", len(self.waiting_list)
+		for i in self.waiting_list:
+			p = self.sim.world.rigidObject(i).getTransform()[1]
+			if p[0]>0.25 or p[0]<-0.25 or p[1]>0.25 or p[1]<-0.25:
+				print "Removing an element from waiting list"
+				self.waiting_list.remove(i)
+				self.default_list_counter[i] = 100
+		# print "Final Length..", len(self.waiting_list)
+
 	def check_target(self):
 		#this value gives the current co-ordinates of the ball
 		#p is list of 3 co-ordinates of mentioned ball number
 		p=self.sim.world.rigidObject(self.current_target).getTransform()[1]
-		if p[0]>0.25 or p[0]<-0.25 or p[1]>0.25 or p[1]<-0.25:
-			self.waiting_list.remove(self.current_target)
 		if p[0]<0.95 and p[0]>0.45 and p[1]<0.25 and p[1]>-0.25:
 			self.score=self.score+1
 			print 'Ball #', self.current_target, ' is placed in the target box!\n\n'
