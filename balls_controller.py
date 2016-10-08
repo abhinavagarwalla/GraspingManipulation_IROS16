@@ -2,18 +2,22 @@ from klampt import *
 from klampt.math import vectorops,so3,se3
 from moving_base_control import *
 from reflex_control import *
-import time
+import time as T
 import math
 
-c_hand = 0.1
+# c_hand = 0.25 # for 5cm ball
+c_hand_10 = 0.33
+c_hand_5 = 0.22
 o_hand=0.4
-pre_hand=1.0
-close_hand=[c_hand,c_hand,c_hand,pre_hand]
+pre_hand=0.7
+close_hand_10 = [c_hand_10,c_hand_10,c_hand_10,pre_hand]
+close_hand_5 = [c_hand_5,c_hand_5,c_hand_5,pre_hand]
 open_hand=[o_hand,o_hand,o_hand+0.1,pre_hand]
 move_speed=0.5;
-face_down=[1,0,0,0,-1,0,0,0,-1]
-start_pos=(face_down,[0,0,0.5])
-drop_pos=(face_down,[0.65,0,0.6])
+face_down=[1,0,0, 0,1,0, 0,0,1]
+# start_pos=(face_down, [0, 0, 0.6])
+# drop_pos=(face_down, [0.65, 0, 0.6])
+
 
 
 class StateMachineController(ReflexController):
@@ -27,18 +31,25 @@ class StateMachineController(ReflexController):
 		self.base_xform = get_moving_base_xform(self.sim.controller(0).model())
 		self.state = 'idle'
 		self.last_state_end_t=sim.getTime()
-		self.target=(so3.identity(),[0,0,0])
+		self.face_down=[1,0,0, 0,-1,0, 0,0,-1]
+		self.target=(self.face_down, [0,0,0])
 		self.num_ball=sim.world.numRigidObjects()
 		self.current_target=0
 		self.waiting_list=range(self.num_ball)
 		self.score=0
 		self.print_flag=1
 		self.everything_done = False
+		self.init_time = sim.getTime()
+		self.init_time2 = T.time()
+		self.inital_flag = True
+		self.rotate_angle = so3.identity()
+		self.flag = True
+
 
 	def __call__(self,controller):
 		sim = self.sim
 		sim.updateWorld()
-		# xform = self.base_xform
+		xform = self.base_xform
 		#turn this to false to turn off print statements
 		ReflexController.verbose = False
 		ReflexController.__call__(self,controller)
@@ -48,86 +59,104 @@ class StateMachineController(ReflexController):
 		if self.print_flag==1:
 			print "State:",self.state
 			self.print_flag=0
+
+		# start_pos=(self.face_down, [0, 0, 0.6])
+		# self.go_to(controller,current_pos,start_pos)
+		if self.flag == True:
+			desired = se3.mul((self.rotate_angle,[0, 0, 0.1]), xform)
+			print 'xform[0]: \n', xform[0]
+			print 'desired[0]: \n', desired[0]
+			send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)		
+			self.flag = False
+
 		if self.state == 'idle':
-			self.go_to(controller,current_pos,start_pos)
-			self.open_hand()
-			#if 2 sec of time has passed and there are balls then:
-			if time > self.last_state_end_t+1 and len(self.waiting_list)>0:
-				self.state='find_target'
-				self.last_state_end_t=time
-				self.print_flag=1
-				#if there are no balls in the basket then finish the job
+			# print 'dummy exec.........................................'
+			if time > self.last_state_end_t + 1.5 and len(self.waiting_list) > 0:
+				# start_pos=(self.face_down, [0, 0, 0.6])
+				# self.go_to(controller,current_pos,start_pos)
+				desired = se3.mul((self.rotate_angle,[0, 0, 0.1]), xform)
+				# print 'xform[0]: \n', xform[0]
+				# print 'desired[0]: \n', desired[0]
+				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
+				# print 'idle state selection...'				
+				self.open_hand()
+				self.last_state_end_t = time
+				self.print_flag = 1
+				self.state = 'find_target'
 			elif len(self.waiting_list) < 1 and self.everything_done == False:
 				print "Finished! Total score is",self.score,"/",self.num_ball
-				self.everything_done = True
+				print 'Total time taken: ', sim.getTime() - self.init_time
+				print 'total actual time: ', T.time() - self.init_time2
+				self.everything_done = True				
 
 		elif self.state=='find_target':
-			#self.target is the postion co-ordinates of the ball along with angular measures
-			#give 0.5 sec to locate the target of the ball
-			self.target=self.find_target();
-			self.state='pick_target'
-			self.last_state_end_t=time
-			self.print_flag=1
+			if time > self.last_state_end_t + 0.5:
+				#self.target is the postion co-ordinates of the ball along with angular measures
+				#give 0.5 sec to locate the target of the ball
+				self.target=self.find_target()
+				self.state='pick_target'
+				self.last_state_end_t=time
+				self.print_flag=1
 
 		elif self.state == 'pick_target':
-			if time<self.last_state_end_t+1:
-				#we move in the plane of the gripper and catch the ball
-				self.go_to(controller,current_pos,(self.target[0],vectorops.add(self.target[1],[0,0,0.2])))
-			elif time<self.last_state_end_t+1.5:
-				#move down along z axis
-				self.go_to(controller,current_pos,self.target)
-			else:
+			# self.go_to(controller,current_pos,(self.target[0], vectorops.add(self.target[1],[0, 0, 0.2])))
+			desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], 0.1]), xform)
+			send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
+			self.last_state_end_t = time
+			self.state = 'go_down_along_z'
+			self.print_flag = 1
+
+		elif self.state == 'go_down_along_z':
+			if time > self.last_state_end_t + 1:
+				# self.target[]
+				# self.go_to(controller,current_pos, self.target)			
+				desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], self.target[1][2]]), xform)
+				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
 				self.state = 'close'
 				self.last_state_end_t = time
 				self.print_flag = 1
 
 		elif self.state == 'close':
-				#this is needed to stop at the current position in case there's some residual velocity
-				if time > self.last_state_end_t + 1:
-				 # and time < self.last_state_end_t + 1.5:
-					# controller.setPIDCommsand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
-					# self.close_hand()
-				# elif time > self.last_state_end_t + 1.5:
-					for i in range(40,20,-1):
-						self.hand.setCommand([i/100,i/100,i/100,0.7])
-						for j in range(10000):
-							k=1
-   						print self.hand.getCommand()
-						if self.contact_gripper(sim, controller):
-							break
-				# 	self.hand.setCommand([(i)/100,(i)/100,(i)/100,0.7])							
-					#having picked the ball, raise up
-					self.state='checking'
-					self.last_state_end_t=time
-					self.print_flag=1
-
-		elif self.state == 'checking':
 			if time > self.last_state_end_t + 1:
-				print self.hand.getCommand()
-			# 	if self.contact_gripper(sim, controller):
-			# 		if time > self.last_state_end_t + 1.5:
-						
-			# 			controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
-			# 			self.hand.setCommand(self.hand.getCommand())						
-			# elif time > self.last_state_end_t + 2:
+				controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
+				self.hand.setCommand(close_hand_10)
 				self.state='closing'
 				self.last_state_end_t=time
 				self.print_flag=1
 
+		# elif self.state == 'checking':
+		# 	if time > self.last_state_end_t + 1:
+		# 		contact_se = self.contact_gripper(sim, controller)
+		# 		print 'Contact Values: ', self.hand.getCommand(), '\tIn contact? ', contact_se 
+		# 		if contact_se:
+		# 			if time > self.last_state_end_t + 1.5:	
+		# 				controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
+		# 				self.hand.setCommand(self.hand.getCommand())
+		# 				print 'Inner condition...'
+		# 				self.state='closing'
+		# 				self.last_state_end_t=time
+		# 				self.print_flag=1
+		# 		elif time > self.last_state_end_t + 2:
+		# 			print 'Outer condition...'
+		# 			self.state='closing'
+		# 			self.last_state_end_t=time
+		# 			self.print_flag=1
+
 
 		elif self.state == 'closing':
-			if time > self.last_state_end_t + 1:
-				#having picked the ball, raise up
+			if time > self.last_state_end_t + 0.5:
+				#having picked the ball, raise 
+				desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], 0.1]), xform)
+				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
 				self.state='raising'
 				self.last_state_end_t=time
 				self.print_flag=1
+				# raise_pos=(self.target[0], [current_pos[1][0], current_pos[1][1], 0.6])
+				# self.go_to(controller, current_pos, raise_pos)
 
 		elif self.state=='raising':
-			raise_pos=(current_pos[0],[current_pos[1][0],current_pos[1][1],0.6])
-			if time<self.last_state_end_t+1 :
-				#raise along the z-co-ordinate of the picked ball
-				self.go_to(controller,current_pos,raise_pos)
-			else:
+			if time > self.last_state_end_t+1:
+
 				"""
 				check if the ball is still held by the gripper
 				"""
@@ -136,6 +165,12 @@ class StateMachineController(ReflexController):
 					self.state='move_to_drop_position'
 					self.last_state_end_t=time
 					self.print_flag=1
+
+					desired = se3.mul((self.target[0],[0.65, 0, 0.1]), xform)
+					send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
+					# drop_pos=(self.target[0], [0.7, 0, 0.6])
+					# self.go_to(controller, current_pos, drop_pos)
+
 				else:
 					print 'Ball is not in contact with gripper'
 					print 'Finding the target...'
@@ -143,18 +178,15 @@ class StateMachineController(ReflexController):
 					self.last_state_end_t = time
 
 		elif self.state == 'move_to_drop_position':
-			if time<self.last_state_end_t+1.7 :
-				self.go_to(controller,current_pos,drop_pos)
-			else:
-				self.state='drop'
+			if time > self.last_state_end_t + 1:
+				controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
+				self.hand.setCommand(open_hand)
+				self.state='drop'				
 				self.last_state_end_t=time
 				self.print_flag=1
 
 		elif self.state=='drop':
-			if time<self.last_state_end_t+0.5:
-				controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
-				self.open_hand()
-			else:
+			if time > self.last_state_end_t+0.5:
 				self.state='idle'
 				self.last_state_end_t=time
 				self.print_flag=1
@@ -187,24 +219,36 @@ class StateMachineController(ReflexController):
 			if upflag == 0:
 				self.current_target = bestlob[0]
 				best_p = bestlobp
+				print "best lob", best_p
 				break
 
-		d_x=0
-		if best_p[0]>0.15:
-			d_x =- 0.030
-			# print 'too close to the wall!!'
-		elif best_p[0]<-0.15:
-			d_x = +0.025
-			# print 'too close to the wall!!'
-		target=(face_down,vectorops.add(best_p,[d_x,0,0.16]))
+		#edge conditions...rotate about z-axis by 90 degrees
+		d_x = 0
+		d_y = 0
+		# best_p[0] = -0.25 + 0.094
+		target=(self.rotate_angle, vectorops.add(best_p, [d_x, d_y, -0.342]))
+	
+		if best_p[0] <= (-0.25 + 0.095) or best_p[0] > (+0.25 - 0.065):
+			face_down = so3.rotation((0, 0, -1), math.radians(90))
+			# face_down[8] = -1
+			target=(face_down, vectorops.add(best_p, [d_x, d_y, -0.342]))
+
+		"""
+		condition for y co-ordinate on target 1 here 
+		"""	
+
+		# target = (face_down, best_p)
+		# print 'Target: ',  target[1]
+		print 'Final target: ', target[1]
 		return target
 
 	def go_to(self,controller,current_pos,goal_pos):
 		#t is the time calculated for smooth transition
-		t=vectorops.distance(current_pos[1],goal_pos[1])/move_speed
+		# t=vectorops.distance(current_pos[1],goal_pos[1])/move_speed
 		#goal_pos[1] is the co-ordinate of the ball 
 		#goal_pos[0] is the angle specification of the ball
-		send_moving_base_xform_linear(controller,goal_pos[0],goal_pos[1],t);
+		print 'Angle Specs: ', goal_pos[0]
+		send_moving_base_xform_linear(controller, self.rotate_angle,goal_pos[1], 1.0);
 
 	def close_hand(self):
 		self.hand.setCommand(close_hand)
