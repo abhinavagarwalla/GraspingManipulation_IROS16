@@ -86,7 +86,7 @@ class StateMachineController(ReflexController):
 				if time < 600:
 					if time > self.last_state_endt + 1 and time < self.last_state_endt + 2:
 						self.hand.setCommand([math.radians(200), math.radians(200), math.radians(200), 0])
-						rotate_base(controller,rotate_angle,0.1)
+						self.rotate_base(controller,rotate_angle,0.1)
 					elif time > self.last_state_endt + 2 and time < self.last_state_endt + 3:
 						desired = se3.mul((so3.identity(),[0.0,0.0,self.lidar_height]),xform)
 						send_moving_base_xform_linear(controller,rotate_angle,desired[1],0.5)
@@ -107,7 +107,7 @@ class StateMachineController(ReflexController):
 		elif self.state == 'frust_open':
 			if time > self.last_state_endt + 1:
 				self.hand.setCommand([math.radians(200), math.radians(200), math.radians(200), 0])
-				rotate_base(controller,rotate_angle,0.1)
+				self.rotate_base(controller,rotate_angle,0.1)
 				self.last_state_endt = time
 				self.state = 'frust_go_in'
 
@@ -192,7 +192,7 @@ class StateMachineController(ReflexController):
 		elif self.state == 'close_fingers':
 			if time > self.last_state_endt + 1:
 				self.hand.setCommand([math.radians(25), math.radians(25), math.radians(25), 0])
-				rotate_base(controller,rotate_angle,0.1)
+				self.rotate_base(controller,rotate_angle,0.1)
 				self.last_state_endt = time
 				self.state = 'before_fetch_x'
 		elif self.state == 'before_fetch_x':
@@ -298,7 +298,7 @@ class StateMachineController(ReflexController):
 		#need to manually call the hand emulator
 		self.hand.process({},self.dt)
 
-	def rotate_base(controller,R,dt):
+	def rotate_base(self ,controller,R,dt):
 		"""For a moving base robot model, send a command to move to the
 		rotation matrix R and translation t using linear interpolation
 		over the duration dt.
