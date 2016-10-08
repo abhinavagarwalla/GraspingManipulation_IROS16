@@ -237,21 +237,29 @@ class StateMachineController(ReflexController):
 		#edge conditions...rotate about z-axis by 90 degrees
 		d_x = 0
 		d_y = 0
-		# best_p[0] = -0.25 + 0.094
+		# best_p[0] = 0.25 - 0.064
+		# best_p[1] = 0.25  - 0.055
 		target=(self.rotate_angle, vectorops.add(best_p, [d_x, d_y, -0.342]))
 	
 		if best_p[0] <= (-0.25 + 0.095) or best_p[0] > (+0.25 - 0.065):
 			face_down = so3.rotation((0, 0, -1), math.radians(90))
-			# face_down[8] = -1
 			target=(face_down, vectorops.add(best_p, [d_x, d_y, -0.342]))
 
-		"""
-		condition for y co-ordinate on target 1 here 
-		"""	
+			if target[1][1] <= (-0.25 + 0.065):
+				target[1][1] = -0.25 + 0.065
+			elif target[1][1] > (+0.25 - 0.095):
+				target[1][1] = 0.25 - 0.095
+			if target[1][0] >= (0.25 - 0.055):
+				target[1][0] = 0.25 - 0.055
+			elif target[1][0] <= (-0.25 + 0.055):
+				target[1][0] = -0.25 + 0.055
 
-		# target = (face_down, best_p)
-		# print 'Target: ',  target[1]
-		print 'Final target: ', target[1]
+		elif best_p[1] >= (0.25 - 0.055):
+			best_p[1] = 0.25 - 0.055
+
+		elif best_p[1] <= (-0.25 + 0.055):
+			best_p[1] = -0.25 + 0.055 
+
 		return target
 
 	def go_to(self,controller,current_pos,goal_pos):
