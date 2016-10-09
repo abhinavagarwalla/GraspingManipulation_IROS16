@@ -7,12 +7,14 @@ import math
 import numpy as np
 
 # c_hand = 0.25 # for 5cm ball
-c_hand_10 = 0.33
+c_hand_10 = 0.38
+c_hand_inter = 0.275
 c_hand_5 = 0.22
 o_hand=0.4
 pre_hand=0.7
 close_hand_10 = [c_hand_10,c_hand_10,c_hand_10,pre_hand]
-close_hand_5 = [c_hand_5,c_hand_5,c_hand_5,pre_hand]
+close_hand_inter = [c_hand_inter, c_hand_inter, c_hand_inter, pre_hand]
+close_hand_5 = [c_hand_5,c_hand_5,c_hand_5,pre_hand, pre_hand]
 open_hand=[o_hand,o_hand,o_hand+0.1,pre_hand]
 move_speed=0.5;
 face_down=[1,0,0, 0,1,0, 0,0,1]
@@ -150,21 +152,81 @@ class StateMachineController(ReflexController):
 
 		elif self.state == 'closing':
 			if time > self.last_state_end_t + 0.5:
-				#having picked the ball, raise 
-				desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], 0.1]), xform)
-				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
-				self.state='raising'
+				self.state='contact_1'
 				self.last_state_end_t=time
 				self.print_flag=1
-				# raise_pos=(self.target[0], [current_pos[1][0], current_pos[1][1], 0.6])
-				# self.go_to(controller, current_pos, raise_pos)
+
+		elif self.state == 'contact_1':
+			if self.contact_gripper(sim, controller):
+				print 'Ball is of radius 10!'
+				self.state = 'verify_contact_1'
+				self.last_state_end_t = time
+				self.print_flag = 1
+			else:
+				print 'Ball is not of radius 10'
+				self.state = 'contact_2'
+				self.last_state_end_t = time
+				self.print_flag = 1
+
+		elif self.state == 'verify_contact_1':
+			if time > self.last_state_end_t + 0.3:
+				if self.contact_gripper(sim, controller):
+					print 'Ball is still in contact with the gripper...'
+					desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], 0.1]), xform)
+					send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
+					self.state = 'raising'
+					self.last_state_end_t = time
+					self.print_flag = 1
+				else:
+					self.state = 'contact_2'
+					self.last_state_end_t = time
+					self.print_flag = 1
+
+		elif self.state == 'contact_2':
+			self.hand.setCommand(close_hand_inter)
+			self.state = 'verify_contact_2'
+			self.last_state_end_t = time
+			self.print_flag = 1
+
+		elif self.state == 'verify_contact_2':
+			if time > self.last_state_end_t + 0.3:
+				if self.contact_gripper(sim, controller):
+					print 'Ball is in contact with the gripper...'
+					self.state = 'raising'
+					desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], 0.1]), xform)
+					send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
+					self.last_state_end_t = time
+					self.print_flag = 1
+				else:
+					self.state = 'contact_3'
+					self.last_state_end_t = time
+					self.print_flag = 1
+
+		elif self.state == 'contact_3':
+			self.hand.setCommand(close_hand_5)
+			self.state = 'verify_contact_3'
+			self.last_state_end_t = time
+			self.print_flag = 1
+
+		elif self.state == 'verify_contact_3':
+			if time > self.last_state_end_t + 0.3:
+				if self.contact_gripper(sim, controller):
+					print 'Ball is in contact with the gripper...'
+					self.state = 'raising'
+					desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], 0.1]), xform)
+					send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
+					self.last_state_end_t = time
+					self.print_flag = 1
+				else:
+					print 'Ball is too small to be held...'
+					desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], 0.1]), xform)
+					send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)					
+					self.state = 'raising'
+					self.last_state_end_t = time
+					self.print_flag = 1
 
 		elif self.state=='raising':
 			if time > self.last_state_end_t+1:
-
-				"""
-				check if the ball is still held by the gripper
-				"""
 				if self.contact_gripper(sim, controller):
 					print 'Ball is in contact with gripper!'
 					self.state='move_to_drop_position'
@@ -173,8 +235,6 @@ class StateMachineController(ReflexController):
 
 					desired = se3.mul((self.target[0],[0.65, 0, 0.1]), xform)
 					send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
-					# drop_pos=(self.target[0], [0.7, 0, 0.6])
-					# self.go_to(controller, current_pos, drop_pos)
 
 				else:
 					print 'Ball is not in contact with gripper'
@@ -191,11 +251,14 @@ class StateMachineController(ReflexController):
 				self.print_flag=1
 
 		elif self.state=='drop':
-			if time > self.last_state_end_t+0.5:
+			if time > self.last_state_end_t+0.3:
 				self.state='idle'
 				self.last_state_end_t=time
 				self.print_flag=1
 				self.check_target()
+
+
+		self.hand.process({},self.dt)
 
 	def at_destination(self,current_pos,goal_pos):
 		if se3.distance(current_pos,goal_pos)<0.05:
@@ -256,9 +319,11 @@ class StateMachineController(ReflexController):
 
 		elif best_p[1] >= (0.25 - 0.055):
 			best_p[1] = 0.25 - 0.055
+			target[1][1] = 0.25 - 0.055
 
 		elif best_p[1] <= (-0.25 + 0.055):
 			best_p[1] = -0.25 + 0.055 
+			target[1][1] = -0.25 + 0.055
 
 		return target
 
