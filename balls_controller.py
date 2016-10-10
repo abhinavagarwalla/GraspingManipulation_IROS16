@@ -14,7 +14,7 @@ o_hand=0.4
 pre_hand=0.7
 close_hand_10 = [c_hand_10,c_hand_10,c_hand_10,pre_hand]
 close_hand_inter = [c_hand_inter, c_hand_inter, c_hand_inter, pre_hand]
-close_hand_5 = [c_hand_5,c_hand_5,c_hand_5,pre_hand, pre_hand]
+close_hand_5 = [c_hand_5-0.05, c_hand_5-0.05, c_hand_5-0.05, pre_hand]
 open_hand=[o_hand,o_hand,o_hand+0.1,pre_hand]
 move_speed=0.5;
 face_down=[1,0,0, 0,1,0, 0,0,1]
@@ -77,15 +77,9 @@ class StateMachineController(ReflexController):
 			self.flag = False
 
 		if self.state == 'idle':
-			# print 'dummy exec.........................................'
 			if time > self.last_state_end_t + 1.5 and len(self.waiting_list) > 0:
-				# start_pos=(self.face_down, [0, 0, 0.6])
-				# self.go_to(controller,current_pos,start_pos)
 				desired = se3.mul((self.rotate_angle,[0, 0, 0.1]), xform)
-				# print 'xform[0]: \n', xform[0]
-				# print 'desired[0]: \n', desired[0]
-				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
-				# print 'idle state selection...'				
+				send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)		
 				self.open_hand()
 				self.last_state_end_t = time
 				self.print_flag = 1
@@ -157,7 +151,7 @@ class StateMachineController(ReflexController):
 				self.print_flag=1
 
 		elif self.state == 'contact_1':
-			if self.contact_gripper(sim, controller):
+			if self.contact_gripper(sim, controller, 10):
 				print 'Ball is of radius 10!'
 				self.state = 'verify_contact_1'
 				self.last_state_end_t = time
@@ -170,7 +164,7 @@ class StateMachineController(ReflexController):
 
 		elif self.state == 'verify_contact_1':
 			if time > self.last_state_end_t + 0.3:
-				if self.contact_gripper(sim, controller):
+				if self.contact_gripper(sim, controller, 10):
 					print 'Ball is still in contact with the gripper...'
 					desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], 0.1]), xform)
 					send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
@@ -190,7 +184,7 @@ class StateMachineController(ReflexController):
 
 		elif self.state == 'verify_contact_2':
 			if time > self.last_state_end_t + 0.3:
-				if self.contact_gripper(sim, controller):
+				if self.contact_gripper(sim, controller, 7):
 					print 'Ball is in contact with the gripper...'
 					self.state = 'raising'
 					desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], 0.1]), xform)
@@ -210,7 +204,7 @@ class StateMachineController(ReflexController):
 
 		elif self.state == 'verify_contact_3':
 			if time > self.last_state_end_t + 0.3:
-				if self.contact_gripper(sim, controller):
+				if self.contact_gripper(sim, controller, 5):
 					print 'Ball is in contact with the gripper...'
 					self.state = 'raising'
 					desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], 0.1]), xform)
@@ -227,7 +221,7 @@ class StateMachineController(ReflexController):
 
 		elif self.state=='raising':
 			if time > self.last_state_end_t+1:
-				if self.contact_gripper(sim, controller):
+				if self.contact_gripper(sim, controller, 0):
 					print 'Ball is in contact with gripper!'
 					self.state='move_to_drop_position'
 					self.last_state_end_t=time
@@ -332,7 +326,7 @@ class StateMachineController(ReflexController):
 		# t=vectorops.distance(current_pos[1],goal_pos[1])/move_speed
 		#goal_pos[1] is the co-ordinate of the ball 
 		#goal_pos[0] is the angle specification of the ball
-		print 'Angle Specs: ', goal_pos[0]
+		# print 'Angle Specs: ', goal_pos[0]
 		send_moving_base_xform_linear(controller, self.rotate_angle,goal_pos[1], 1.0);
 
 	def close_hand(self):
@@ -362,7 +356,7 @@ class StateMachineController(ReflexController):
 			print 'Ball #', self.current_target, ' is not placed in the target box\n\n'
 		print 'Going over to next cycle...'
 
-	def contact_gripper(self, sim, controller):
+	def contact_gripper(self, sim, controller, radius):
 		"""
 		reading finger sensor data
 		"""
@@ -385,12 +379,27 @@ class StateMachineController(ReflexController):
 		"""
 		check whether ball is held
 		"""
-		if f1_contact[5] == 1 or f2_contact[5] == 1 or f3_contact[5] == 1:
-			return True
-		elif f1_contact[4] == 1 or f2_contact[4] == 1 or f3_contact[4] == 1:
-			return True
-		else:
-			return False
+		# if f1_contact[5] == 1 or f2_contact[5] == 1 or f3_contact[5] == 1:
+		# 	return True
+		# elif f1_contact[4] == 1 or f2_contact[4] == 1 or f3_contact[4] == 1:
+		# 	return True
+		# else:
+		# 	return False
+
+		if radius == 10:
+			if (f1_contact[5] == 1 and f2_contact[5] == 1 and f3_contact[5] == 1)  or (f1_contact[4] == 1 or f2_contact[4] == 1 or f3_contact[4] == 1):
+				return True
+			else:
+				return False
+
+		elif radius == 7 or radius == 5 or radius == 0:
+			if f1_contact[5] == 1 or f2_contact[5] == 1 or f3_contact[5] == 1:
+				return True
+			elif f1_contact[4] == 1 or f2_contact[4] == 1 or f3_contact[4] == 1:
+				return True
+			else:
+				return False
+
 
 		
 def make(sim,hand,dt):
