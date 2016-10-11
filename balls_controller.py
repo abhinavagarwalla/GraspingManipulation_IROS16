@@ -315,46 +315,62 @@ class StateMachineController(ReflexController):
 			face_down = so3.rotation((0, 0, -1), math.radians(90))
 			target=(face_down, vectorops.add(best_p, [d_x, d_y, -0.342]))		
 
-			print 'extreme condition $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$'
+			# print 'extreme condition $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$'
 			# boundary conditions after the 90-degree rotation
 			if best_p[1] >= (0.225 - 0.088) or target[1][1] >= (0.225 - 0.088):
-				target[1][1] = 0.225 - 0.088
+				# print '###################         E_1'
+				target[1][1] = 0.225 - 0.09
 			elif best_p[1] <= (-0.225 + 0.066) or target[1][1] <= (-0.225 + 0.066):
-				target[1][1] = -0.225 + 0.066
+				# print '###################         E_2'
+				target[1][1] = -0.225 + 0.07
 
 			if best_p[0] <= (-0.225 + 0.065) or target[1][0] <= (-0.225 + 0.065):
+				# print '###################         E_3'
 				target[1][0] = -0.225 + 0.065
 			elif best_p[0] >= (0.225 - 0.05) or target[1][0] >= (0.225 + 0.05):
+				# print '###################         E_4'
 				target[1][0] =  0.225 - 0.05
 
-		# edge conditions on no rotation
-		print 'best_p[1]################: ', best_p[1]
-		if best_p[1] >= (0.225 - 0.07):
-			target[1][1] = 0.225 - 0.07
-		elif best_p[1] <= (-0.225 + 0.07):
-			target[1][1] = -0.225 + 0.07
-
-		if best_p[0] <= (-0.225 + 0.092):
-			target[1][0] = -0.225 + 0.092
-		elif best_p[0] >= (0.225 - 0.065):
-			target[1][0] =  0.225 - 0.065		
+			return target
 
 		# boundary condition for the divider in the middle
 		if best_p[0] <= (0.05 + self.delta_x) and best_p[0] >= (-0.05 - self.delta_x):
 			face_down = so3.rotation((0, 0, -1), math.radians(90))
 			target=(face_down, vectorops.add(best_p, [d_x, d_y, -0.342]))
 			
-			print 'inner boundary condition #####################################'
+			# print 'inner boundary condition #####################################'
 			# boundary conditions after the 90-degree rotation
 			if best_p[1] >= (0.225 - 0.088) or target[1][1] >= (0.225 - 0.088):
-				target[1][1] = 0.225 - 0.088
+				# print '###################         I_1'
+				target[1][1] = 0.225 - 0.09
 			elif best_p[1] <= (-0.225 + 0.066) or target[1][1] <= (-0.225 + 0.066):
-				target[1][1] = -0.225 + 0.066
+				# print '###################         I_2'
+				target[1][1] = -0.225 + 0.07
 
 			if best_p[0] <= (-0.225 + 0.065) or target[1][0] <= (-0.225 + 0.065):
+				# print '###################         I_3'
 				target[1][0] = -0.225 + 0.065
 			elif best_p[0] >= (0.225 - 0.05) or target[1][0] >= (0.225 + 0.05):
-				target[1][0] =  0.225 - 0.05			
+				# print '###################         I_4'
+				target[1][0] =  0.225 - 0.05
+
+			return target
+
+
+		# edge conditions on no rotation
+		if best_p[1] >= (0.225 - 0.07):
+			# print '###################         M_1'
+			target[1][1] = 0.225 - 0.07
+		elif best_p[1] <= (-0.225 + 0.07):
+			# print '###################         M_2'
+			target[1][1] = -0.225 + 0.07
+
+		if best_p[0] <= (-0.225 + 0.092):
+			# print '###################         M_3'
+			target[1][0] = -0.225 + 0.092
+		elif best_p[0] >= (0.225 - 0.065):
+			# print '###################         M_4'
+			target[1][0] =  0.225 - 0.065					
 
 		return target
 
