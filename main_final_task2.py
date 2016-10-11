@@ -339,7 +339,7 @@ if __name__ == '__main__':
 	('ycb','large_black_spring_clamp'),
 	('apc2015','dove_beauty_bar'),
 	('ycb','black_and_decker_lithium_drill_driver_unboxed'),
-	('apc2015','cheezit_bit_original'),
+	('apc2015','cheezit_big_original'),
 	('apc2015','laugh_out_loud_joke_book')
 	]
 
