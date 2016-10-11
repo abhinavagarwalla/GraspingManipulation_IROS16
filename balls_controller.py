@@ -14,7 +14,7 @@ c_hand_5 = 0.2
 o_hand=0.4
 pre_hand=0.7
 
-close_hand_12 = [c_hand_10+0.05,c_hand_10+0.05,c_hand_10,pre_hand]
+close_hand_12 = [c_hand_10,c_hand_10,c_hand_10-0.05,pre_hand]
 close_hand_further = [c_hand_10+0.05, c_hand_10+0.05, 0.35, pre_hand]
 close_hand_inter = [c_hand_inter, c_hand_inter, c_hand_inter-0.05, pre_hand]
 close_hand_7 = [c_hand_5, c_hand_5, c_hand_5-0.05, pre_hand]
@@ -53,6 +53,7 @@ class StateMachineController(ReflexController):
 		self.inital_flag = True
 		self.rotate_angle = so3.identity()
 		self.flag = True
+		self.delta_x = 0.12
 
 
 	def __call__(self,controller):
@@ -71,8 +72,7 @@ class StateMachineController(ReflexController):
 
 		self.update_waiting_list()
 
-		# start_pos=(self.face_down, [0, 0, 0.6])
-		# self.go_to(controller,current_pos,start_pos)
+
 		if self.flag == True:
 			desired = se3.mul((self.rotate_angle,[0, 0, 0.1]), xform)
 			print 'xform[0]: \n', xform[0]
@@ -94,7 +94,7 @@ class StateMachineController(ReflexController):
 				print 'total actual time: ', T.time() - self.init_time2
 				self.everything_done = True				
 
-		elif self.state=='find_target':
+		if self.state=='find_target':
 			if time > self.last_state_end_t + 0.5:
 				#self.target is the postion co-ordinates of the ball along with angular measures
 				#give 0.5 sec to locate the target of the ball
@@ -237,7 +237,7 @@ class StateMachineController(ReflexController):
 					self.last_state_end_t=time
 					self.print_flag=1
 
-					desired = se3.mul((self.target[0],[0.60, 0, 0.1]), xform)
+					desired = se3.mul((self.target[0],[0.60, 0.1, 0.1]), xform)
 					send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
 
 				else:
@@ -304,30 +304,57 @@ class StateMachineController(ReflexController):
 		#edge conditions...rotate about z-axis by 90 degrees
 		d_x = 0
 		d_y = 0
-		# best_p[0] = 0.25 - 0.064
-		# best_p[1] = 0.25  - 0.055
+
+		# face_down = so3.rotation((0, 0, -1), math.radians(90))
+		# target=(face_down, vectorops.add(best_p, [d_x, d_y, -0.342]))
+		# target[1][1] = -0.225 + 0.066
+
 		target=(self.rotate_angle, vectorops.add(best_p, [d_x, d_y, -0.342]))
-	
-		if best_p[0] <= (-0.25 + 0.095) or best_p[0] > (+0.25 - 0.065):
+		# rotation conditions
+		if (best_p[0] <= (-0.225 + 0.095)) or (best_p[0] >= (0.225 - 0.065)):  
+			face_down = so3.rotation((0, 0, -1), math.radians(90))
+			target=(face_down, vectorops.add(best_p, [d_x, d_y, -0.342]))		
+
+			print 'extreme condition $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$'
+			# boundary conditions after the 90-degree rotation
+			if best_p[1] >= (0.225 - 0.088) or target[1][1] >= (0.225 - 0.088):
+				target[1][1] = 0.225 - 0.088
+			elif best_p[1] <= (-0.225 + 0.066) or target[1][1] <= (-0.225 + 0.066):
+				target[1][1] = -0.225 + 0.066
+
+			if best_p[0] <= (-0.225 + 0.065) or target[1][0] <= (-0.225 + 0.065):
+				target[1][0] = -0.225 + 0.065
+			elif best_p[0] >= (0.225 - 0.05) or target[1][0] >= (0.225 + 0.05):
+				target[1][0] =  0.225 - 0.05
+
+		# edge conditions on no rotation
+		print 'best_p[1]################: ', best_p[1]
+		if best_p[1] >= (0.225 - 0.07):
+			target[1][1] = 0.225 - 0.07
+		elif best_p[1] <= (-0.225 + 0.07):
+			target[1][1] = -0.225 + 0.07
+
+		if best_p[0] <= (-0.225 + 0.092):
+			target[1][0] = -0.225 + 0.092
+		elif best_p[0] >= (0.225 - 0.065):
+			target[1][0] =  0.225 - 0.065		
+
+		# boundary condition for the divider in the middle
+		if best_p[0] <= (0.05 + self.delta_x) and best_p[0] >= (-0.05 - self.delta_x):
 			face_down = so3.rotation((0, 0, -1), math.radians(90))
 			target=(face_down, vectorops.add(best_p, [d_x, d_y, -0.342]))
+			
+			print 'inner boundary condition #####################################'
+			# boundary conditions after the 90-degree rotation
+			if best_p[1] >= (0.225 - 0.088) or target[1][1] >= (0.225 - 0.088):
+				target[1][1] = 0.225 - 0.088
+			elif best_p[1] <= (-0.225 + 0.066) or target[1][1] <= (-0.225 + 0.066):
+				target[1][1] = -0.225 + 0.066
 
-			if target[1][1] <= (-0.25 + 0.065):
-				target[1][1] = -0.25 + 0.065
-			elif target[1][1] > (+0.25 - 0.095):
-				target[1][1] = 0.25 - 0.095
-			if target[1][0] >= (0.25 - 0.055):
-				target[1][0] = 0.25 - 0.055
-			elif target[1][0] <= (-0.25 + 0.055):
-				target[1][0] = -0.25 + 0.055
-
-		elif best_p[1] >= (0.25 - 0.055):
-			best_p[1] = 0.25 - 0.055
-			target[1][1] = 0.25 - 0.055
-
-		elif best_p[1] <= (-0.25 + 0.055):
-			best_p[1] = -0.25 + 0.055 
-			target[1][1] = -0.25 + 0.055
+			if best_p[0] <= (-0.225 + 0.065) or target[1][0] <= (-0.225 + 0.065):
+				target[1][0] = -0.225 + 0.065
+			elif best_p[0] >= (0.225 - 0.05) or target[1][0] >= (0.225 + 0.05):
+				target[1][0] =  0.225 - 0.05			
 
 		return target
 
