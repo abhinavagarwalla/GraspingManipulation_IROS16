@@ -7,15 +7,19 @@ import math
 import numpy as np
 
 # c_hand = 0.25 # for 5cm ball
-c_hand_10 = 0.38
+c_hand_10 = 0.4
 c_hand_inter = 0.275
-c_hand_5 = 0.22
+c_hand_further = 0.25
+c_hand_5 = 0.2
 o_hand=0.4
 pre_hand=0.7
-close_hand_10 = [c_hand_10,c_hand_10,c_hand_10,pre_hand]
-close_hand_inter = [c_hand_inter, c_hand_inter, c_hand_inter, pre_hand]
-close_hand_5 = [c_hand_5-0.05, c_hand_5-0.05, c_hand_5-0.05, pre_hand]
+
+close_hand_12 = [c_hand_10+0.05,c_hand_10+0.05,c_hand_10,pre_hand]
+close_hand_further = [c_hand_10+0.05, c_hand_10+0.05, 0.35, pre_hand]
+close_hand_inter = [c_hand_inter, c_hand_inter, c_hand_inter-0.05, pre_hand]
+close_hand_7 = [c_hand_5, c_hand_5, c_hand_5-0.05, pre_hand]
 open_hand=[o_hand,o_hand,o_hand+0.1,pre_hand]
+
 move_speed=0.5;
 face_down=[1,0,0, 0,1,0, 0,0,1]
 # start_pos=(face_down, [0, 0, 0.6])
@@ -120,7 +124,7 @@ class StateMachineController(ReflexController):
 		elif self.state == 'close':
 			if time > self.last_state_end_t + 1:
 				controller.setPIDCommand(controller.getCommandedConfig(),[0.0]*len(controller.getCommandedConfig()))
-				self.hand.setCommand(close_hand_10)
+				self.hand.setCommand(close_hand_12)
 				self.state='closing'
 				self.last_state_end_t=time
 				self.print_flag=1
@@ -151,20 +155,26 @@ class StateMachineController(ReflexController):
 				self.print_flag=1
 
 		elif self.state == 'contact_1':
-			if self.contact_gripper(sim, controller, 10):
-				print 'Ball is of radius 10!'
-				self.state = 'verify_contact_1'
+			if self.contact_gripper(sim, controller, 12):
+				print 'Ball is of radius 11 or 12!'
+				self.state = 'compress_further'
 				self.last_state_end_t = time
 				self.print_flag = 1
 			else:
-				print 'Ball is not of radius 10'
+				print 'Ball is not of radius 11 or 12'
 				self.state = 'contact_2'
 				self.last_state_end_t = time
 				self.print_flag = 1
 
+		elif self.state == 'compress_further':
+			self.hand.setCommand(close_hand_further)
+			self.state = 'verify_contact_1'
+			self.last_state_end_t = time
+			self.print_flag = 1
+
 		elif self.state == 'verify_contact_1':
-			if time > self.last_state_end_t + 0.3:
-				if self.contact_gripper(sim, controller, 10):
+			if time > self.last_state_end_t + 0.5:
+				if self.contact_gripper(sim, controller, 12):
 					print 'Ball is still in contact with the gripper...'
 					desired = se3.mul((self.target[0],[self.target[1][0], self.target[1][1], 0.1]), xform)
 					send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
@@ -197,7 +207,7 @@ class StateMachineController(ReflexController):
 					self.print_flag = 1
 
 		elif self.state == 'contact_3':
-			self.hand.setCommand(close_hand_5)
+			self.hand.setCommand(close_hand_7)
 			self.state = 'verify_contact_3'
 			self.last_state_end_t = time
 			self.print_flag = 1
@@ -220,14 +230,14 @@ class StateMachineController(ReflexController):
 					self.print_flag = 1
 
 		elif self.state=='raising':
-			if time > self.last_state_end_t+1:
+			if time > self.last_state_end_t+0.45:
 				if self.contact_gripper(sim, controller, 0):
 					print 'Ball is in contact with gripper!'
 					self.state='move_to_drop_position'
 					self.last_state_end_t=time
 					self.print_flag=1
 
-					desired = se3.mul((self.target[0],[0.65, 0, 0.1]), xform)
+					desired = se3.mul((self.target[0],[0.60, 0, 0.1]), xform)
 					send_moving_base_xform_linear(controller,desired[0],desired[1], 0.5)
 
 				else:
@@ -286,7 +296,7 @@ class StateMachineController(ReflexController):
 			if upflag == 0:
 				self.current_target = bestlob[0]
 				best_p = bestlobp
-				print "best lob", best_p
+				# print "best lob", best_p
 				break
 
 		self.default_list_counter[self.current_target] = self.default_list_counter[self.current_target]+1
@@ -386,13 +396,13 @@ class StateMachineController(ReflexController):
 		# else:
 		# 	return False
 
-		if radius == 10:
-			if (f1_contact[5] == 1 and f2_contact[5] == 1 and f3_contact[5] == 1)  or (f1_contact[4] == 1 or f2_contact[4] == 1 or f3_contact[4] == 1):
+		if radius == 12:
+			if (f1_contact[5] == 1 or f2_contact[5] == 1 or f3_contact[5] == 1)  or (f1_contact[4] == 1 and f2_contact[4] == 1 and f3_contact[4] == 1):
 				return True
 			else:
 				return False
 
-		elif radius == 7 or radius == 5 or radius == 0:
+		elif radius == 9 or radius == 7 or radius == 0:
 			if f1_contact[5] == 1 or f2_contact[5] == 1 or f3_contact[5] == 1:
 				return True
 			elif f1_contact[4] == 1 or f2_contact[4] == 1 or f3_contact[4] == 1:
